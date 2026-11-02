@@ -1,31 +1,44 @@
 # Engine choice
 
-Gunk's FireRed is built on **pret's `pokefirered` decompilation** (https://github.com/pret/pokefirered),
-compiled with **agbcc** (https://github.com/pret/agbcc) and the arm-none-eabi binutils.
+**Gunk's LeafGreen is built on [pret/pokefirered](https://github.com/pret/pokefirered)**, the decompilation of
+FireRed and LeafGreen, with `make leafgreen` (LeafGreen USA 1.0).
 
-## The options
+## What the project needs
 
-| Base | Full source | Reproducible build | Notes |
-|---|---|---|---|
-| pret `pokefirered` | Yes, 100 % decompiled C | Yes: a clean build matches the retail ROM byte for byte (sha1 `41cb23d8…`) | Same decomp the LeafGreen sibling uses (`make leafgreen`). |
-| FRLG-capable expansion (rh-hideout family) | Yes | Builds, but never matches retail | Brings a modern battle engine (Gen 9 mechanics, new species and moves). That changes battles and difficulty, which Gunk's hacks don't do, and it changes the save layout. |
-| FireRed Engine Upgrade (CFRU) | No: C/asm inserted into a retail ROM with a Python inserter | Only as a binary insertion into a ROM, with free-space offsets | It also changes battle mechanics by default. It can't produce a vanilla build to compare with, and the repo would hold a patch toolchain, not the game's source. |
+- **Full source.** Every change is a reviewable diff to C, assembly or data, not bytes poked into a ROM.
+- **A reproducible build.** The same commit and toolchain give the same ROM, so a release's BPS patch can be
+  rebuilt and checked by anyone.
+- **A vanilla control build.** The save-safety suite runs every test on the unmodified game and on the hack. If
+  the unmodified build is byte-identical to the retail cart, any difference in results is ours.
+- **No gameplay changes beyond quality of life.** Battle mechanics, stats, trainers and the story stay as
+  they are.
 
-## Why pokefirered
+## Options
 
-- **Save safety first.** With the vanilla game's source we can see exactly what each save block holds
-  (`include/global.h`, `src/save.c`) and prove a change leaves the layout alone. A vanilla build that matches the
-  retail sha1 is the control for every save test.
-- **No difficulty or story changes.** The decomp is the vanilla game, so nothing changes unless we change it.
-  The expansion and CFRU both bring new battle mechanics by default.
-- **Reproducible.** Anyone with their own FireRed (USA) 1.0 dump can build from the repo. `make compare` checks
-  the toolchain first.
-- **Shared with LeafGreen.** Both hacks use the same decomp, so the code can be shared through their public repos.
+| Option | Full source | Reproducible | Byte-identical vanilla | Keeps Gen 3 mechanics |
+| --- | --- | --- | --- | --- |
+| **pret pokefirered** | yes | yes (agbcc + binutils) | yes: `leafgreen.sha1` = `574fa542…d71e` | yes |
+| FRLG-capable expansion (pokeemerald-expansion and its FRLG forks) | yes | yes | no | no: modern battle engine, split, new mechanics by default |
+| FireRed Engine Upgrade (CFRU) | only the inserted code; the base game stays a binary | partly (needs the base ROM at build time) | n/a | configurable |
 
-DexNav and following Pokémon are not in the decomp. We port them from the open implementations in the expansion
-projects and credit them (see the README).
+- **pokefirered** builds LeafGreen 1.0 byte for byte from source (`make compare_leafgreen`), which is the
+  control build the suite needs. Its save code (`src/save.c`) is fully readable, which matters for "save safety
+  first". It is the same base Gunk's FireRed uses, so code can be shared between the two hacks.
+- **Expansions** replace the battle engine and many systems with later-generation behaviour. Turning that back
+  off is a large diff of its own, and the result can't be compared with the retail game byte for byte. Where an
+  expansion has a good implementation of a feature (DexNav, following Pokémon), we port that code onto
+  pokefirered with credit instead of adopting the whole engine.
+- **CFRU** targets the FireRed ROM (BPRE) and inserts compiled code into a binary. It doesn't support LeafGreen,
+  and the base game isn't source.
 
-## Base ROM
+## Toolchain
 
-`baserom.gba` = Pokémon FireRed Version (USA) 1.0, sha1 `41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc`
-(`firered.sha1`). Gitignored, never committed.
+- `agbcc` (pret/agbcc, the original-compiler rebuild) for C, as pokefirered expects for a matching build.
+- `arm-none-eabi` binutils (MSYS2 `mingw-w64-x86_64-arm-none-eabi-*`) for assembling and linking.
+- The decomp's own host tools (`tools/`: gbagfx, scaninc, preproc, mapjson, jsonproc, gbafix…), built by its
+  Makefile.
+- Release patches: `tools/patch/bps.py` (from Gunk's Platinum).
+
+The base ROM is the user's own LeafGreen dump. It is checked against `leafgreen.sha1` and is never committed.
+pokefirered doesn't need it to build; it's only the source side of the BPS patch and the retail control for the
+emulator suite.

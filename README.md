@@ -1,76 +1,55 @@
-# Pokémon Gunk's FireRed Version
+# Pokémon Gunk's LeafGreen Version
 
-A quality-of-life hack of Pokémon FireRed, built on [pret's FireRed decompilation](https://github.com/pret/pokefirered).
+A quality-of-life hack of Pokémon LeafGreen, built on [pret's FireRed/LeafGreen decompilation](https://github.com/pret/pokefirered).
 It keeps the game's difficulty and story as they are and takes the grind and friction out, for long playthroughs.
 
-## Features
+**Status: in development.** There is no release yet. [`docs/GUNK_CHANGES.md`](docs/GUNK_CHANGES.md) tracks
+each change and its test results.
 
-- **DexNav.** A key item that lists the grass Pokémon of the place you're in: seen ones by name, unseen ones as
-  dashes. Pick one and it hides in a patch of rustling grass nearby; step in to battle it. Every Pokémon it finds
-  is a legal wild roll for that spot. Search levels and chains raise the odds of good IVs and shinies.
-- **Pokémon follow you.** Your lead Pokémon walks behind you, any of the 386 species, shinies in their shiny
-  colors. Walk into it to swap places; it waits on the shore while you Surf and hops down ledges after you.
-  RETURN in its party menu puts it away, WALK brings it back.
-- **Faster play:** instant text, a faster EXP bar, auto-run (hold B to walk), eggs that hatch twice as fast.
-- **Items:** reusable TMs, two registered items (SELECT and R), bag sorting (START in the bag), a prompt to use
-  another Repel when one runs out, and an Endless Repel you switch on and off.
-- **Pokémon:** IV and EV view in the summary (A on the SKILLS page), Exp. All (half the EXP and the EVs for the
-  Pokémon that didn't battle), vitamins up to 252 EVs, and trade evolutions without trading. HM moves work without
-  teaching the move, and every PC has a free Move Tutor that remembers and forgets moves.
-- **Save safety:** an extra check when loading, so a save slot can only load if all of it comes from one save.
+## Features (planned)
 
-Oak's aide gives the Endless Repel, the Exp. All and the DexNav along with the Running Shoes in Pewter City. On a
-save that is already past Pewter, Mom has them.
+- **DexNav.** See each route's Pokémon (caught, seen or unseen) and search for one in the grass.
+- **Pokémon follow you.**
+- **More PC boxes**, if the save layout allows it safely (see [`docs/PC_BOXES_PLAN.md`](docs/PC_BOXES_PLAN.md)).
+- **Faster play:** instant text, a faster EXP bar, auto-run, faster egg hatching.
+- **Items:** reusable TMs, two registered items, bag sorting, a prompt to use another Repel when one runs out,
+  and an Endless Repel toggle.
+- **Pokémon:** IV and EV view in the summary, Exp. All, vitamins up to 252 EVs, and trade evolutions without
+  trading. HM moves work without teaching the move, and every Pokémon Center has a Move Tutor.
 
-Save safety comes first: every build passes an emulator test suite that covers save cycles, power cuts at points
-across the flash write, torn writes at every sector, and recovery from a damaged save slot.
-
-### Save safety
-
-FireRed keeps two save slots and writes the older one each time, so a power cut while saving falls back to
-the previous save. The test suite confirms this for vanilla and for Gunk's FireRed: power cuts at 12 points
-across the flash write, and torn writes at every one of the 14 sectors, all load the previous save.
-
-Gunk's FireRed adds one more check. Vanilla accepts a slot when each of its 14 sectors has a good checksum;
-Gunk's also requires all 14 to carry the same save counter. A normal power cut can't produce a slot that
-fails only that check, but a slot holding sectors from two different saves now falls back to the other slot
-instead of loading as a mix (the suite's "mixed" test builds one).
+Save safety comes first: every build has to pass an emulator test suite that covers save cycles, power cuts
+right after and during a save, and damaged-save recovery. The suite runs on the unmodified game too, as the control.
 
 ## Play it
 
-Releases ship a **BPS patch**, not a ROM. You need your own dump of **Pokémon FireRed (USA) 1.0**:
+Releases will ship a **BPS patch**, not a ROM. You need your own dump of **Pokémon LeafGreen (USA)**, version 1.0:
 
 ```
-sha1: 41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc
+sha1: 574fa542ffebb14be69902d1d36f1ec0a4afd71e
 ```
 
 1. Download the `.bps` file from [Releases](../../releases).
 2. Apply it to your ROM with [Rom Patcher JS](https://www.marcrobledo.com/RomPatcher.js/) (in the browser),
-   Floating IPS, or `py tools/patch/bps.py apply <firered.gba> <patch.bps> <out.gba>`.
+   Floating IPS, or `py tools/patch/bps.py apply <leafgreen.gba> <patch.bps> <out.gba>`.
 3. Play the result in any GBA emulator or flashcart. The patcher checks your ROM first and refuses the wrong one.
 
-Saves carry over between releases unless the release notes say otherwise. Back up your save before updating.
-A vanilla FireRed save loads in Gunk's FireRed.
+Back up your save before updating.
 
 ## Build it
 
-Follow pret's [`INSTALL.md`](INSTALL.md), then run `make`. A clean build reproduces the release ROM, and
-`tools/patch/bps.py make` makes the patch from it. `docs/ENGINE.md` says why this hack uses the decompilation,
-and `docs/GUNK_CHANGES.md` lists every change with how it was tested.
+Follow pret's [`INSTALL.md`](INSTALL.md), then run `make leafgreen`. `make compare_leafgreen` on the upstream
+code reproduces the retail ROM byte for byte. [`docs/ENGINE.md`](docs/ENGINE.md) explains why this hack uses
+the decompilation.
 
 ## Credits
 
-- [pret](https://github.com/pret/pokefirered) for the FireRed decompilation this hack is built on, and
-  [agbcc](https://github.com/pret/agbcc).
-- The DexNav idea comes from later Pokémon games and fan hacks; ghoulslash's DexNav for
-  [pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion) was the reference for its design.
-- The Repel prompt follows the one in [pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion).
-- [MinimalEffort07/pokefirered](https://github.com/MinimalEffort07/pokefirered): the follower's movement (walkable
-  tiles, catching up, swapping places, making way at ledges and shores) is ported from its Walk With Pokémon
-  feature, and it showed that FireRed's unused shaking-grass field effect and SaveBlock1's unused bytes are free.
-- The follower sprites come from [pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion),
-  originally from aarant's [followers branch](https://github.com/aarant/pokeemerald/tree/followers-expanded-id),
-  and the artists credited there.
+- [pret](https://github.com/pret/pokefirered) for the FireRed/LeafGreen decompilation this hack is built on,
+  and [agbcc](https://github.com/pret/agbcc).
+- [pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion) contributors: the DexNav
+  (originally by Ghoulslash) and following-Pokémon implementations this hack's versions are based on.
+- The DexNav idea comes from later Pokémon games and fan hacks such as Pokémon Unbound.
+- Gunk's [Platinum](https://github.com/OnionGunk/pokemon-gunks-platinum) and FireRed hacks, which share
+  features and code with this one.
 
 Pokémon is © Nintendo, Creatures Inc. and GAME FREAK inc. This is a non-commercial fan project and contains
 no ROM data; you need your own legally dumped copy of the game.

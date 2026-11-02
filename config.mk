@@ -30,7 +30,7 @@ ifeq ($(GAME_VERSION),FIRERED)
   BUILD_NAME  := firered
 else
 ifeq ($(GAME_VERSION),LEAFGREEN)
-  TITLE       := POKEMON LEAF
+  TITLE       := GUNK LG
   GAME_CODE   := BPG
   BUILD_NAME  := leafgreen
 else

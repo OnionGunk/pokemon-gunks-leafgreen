@@ -386,8 +386,10 @@ endif
 # Elf from object files
 LDFLAGS = -Map ../../$(MAP)
 $(ELF): $(LD_SCRIPT) $(LD_SCRIPT_DEPS) $(OBJS)
-	@cd $(OBJ_DIR) && $(LD) $(LDFLAGS) -T ../../$< --print-memory-usage -o ../../$@ $(OBJS_REL) $(LIB) | cat
-	@echo "cd $(OBJ_DIR) && $(LD) $(LDFLAGS) -T ../../$< --print-memory-usage -o ../../$@ <objs> <libs> | cat"
+	@# binutils 2.47 refuses an INCLUDE inside SECTIONS ("appears multiple times"), so inline the included files
+	@cd $(OBJ_DIR) && awk '/^[ 	]*INCLUDE "/ { f = $$0; sub(/^[ 	]*INCLUDE "/, "", f); sub(/".*/, "", f); while ((getline l < f) > 0) print l; close(f); next } { print }' ../../$< > ld_script_inlined.ld
+	@cd $(OBJ_DIR) && $(LD) $(LDFLAGS) -T ld_script_inlined.ld --print-memory-usage -o ../../$@ $(OBJS_REL) $(LIB) | cat
+	@echo "cd $(OBJ_DIR) && $(LD) $(LDFLAGS) -T ld_script_inlined.ld --print-memory-usage -o ../../$@ <objs> <libs> | cat"
 	$(FIX) $@ -t"$(TITLE)" -c$(GAME_CODE) -m$(MAKER_CODE) -r$(GAME_REVISION) --silent
 
 # Builds the rom from the elf file

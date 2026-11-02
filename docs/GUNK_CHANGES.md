@@ -30,4 +30,4 @@ the emulator; the save suite (`leafgreen-tools/emu/suite`) runs after every buil
 
 | Build | save_cycles | crash_after_save | torn_save | torn_save_exact | backup_recovery |
 | --- | --- | --- | --- | --- | --- |
-| retail LeafGreen 1.0 | pass | pass | pass (10 captures, 8 mid-write) | | pass |
+| retail LeafGreen 1.0 | pass | pass | pass (10 captures, 8 mid-write) | pass (5 cuts, incl. only the last footer missing) | pass |

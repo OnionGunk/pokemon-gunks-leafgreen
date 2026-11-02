@@ -973,8 +973,16 @@ static const u16 * const sHpBarPals[] =
     }                                 \
 }
 
+// Gunk's IV/EV view: A on the stats page cycles stats -> IVs -> EVs
+enum { STATS_VIEW_STATS, STATS_VIEW_IVS, STATS_VIEW_EVS, STATS_VIEW_COUNT };
+static u8 sStatsView;
+
+static const u8 sText_IvPrefix[] = _("IV ");
+static const u8 sText_EvPrefix[] = _("EV ");
+
 void ShowPokemonSummaryScreen(struct Pokemon * party, u8 cursorPos, u8 lastIdx, MainCallback savedCallback, u8 mode)
 {
+    sStatsView = STATS_VIEW_STATS;
     sMonSummaryScreen = AllocZeroed(sizeof(struct PokemonSummaryScreenData));
     sMonSkillsPrinterXpos = AllocZeroed(sizeof(struct Struct203B144));
 
@@ -1181,6 +1189,15 @@ static void Task_InputHandler_Info(u8 taskId)
                 {
                     PlaySE(SE_SELECT);
                     sMonSummaryScreen->state3270 = PSS_STATE3270_ATEXIT_FADEOUT;
+                }
+                else if (sMonSummaryScreen->curPageIndex == PSS_PAGE_SKILLS && !sMonSummaryScreen->isEgg
+                      && !(sMonSummaryScreen->savedCallback == CB2_ReturnToTradeMenuFromSummary && sMonSummaryScreen->isEnemyParty == TRUE))
+                {
+                    PlaySE(SE_SELECT);
+                    sStatsView = (sStatsView + 1) % STATS_VIEW_COUNT;
+                    BufferMonSkills();
+                    PokeSum_PrintRightPaneText();
+                    CopyWindowToVram(sMonSummaryScreen->windowIds[POKESUM_WIN_RIGHT_PANE], 2);
                 }
                 else if (sMonSummaryScreen->curPageIndex == PSS_PAGE_MOVES)
                 {
@@ -2159,6 +2176,31 @@ static void BufferMonSkills(void)
     u32 exp;
     u32 expToNextLevel;
 
+    if (sStatsView != STATS_VIEW_STATS)
+    {
+        static const u8 sIvEvIds[2][NUM_STATS] = {
+            { MON_DATA_HP_IV, MON_DATA_ATK_IV, MON_DATA_DEF_IV, MON_DATA_SPATK_IV, MON_DATA_SPDEF_IV, MON_DATA_SPEED_IV },
+            { MON_DATA_HP_EV, MON_DATA_ATK_EV, MON_DATA_DEF_EV, MON_DATA_SPATK_EV, MON_DATA_SPDEF_EV, MON_DATA_SPEED_EV },
+        };
+        const u8 *ids = sIvEvIds[sStatsView - STATS_VIEW_IVS];
+        u8 i;
+
+        StringCopy(sMonSummaryScreen->summary.curHpStrBuf, sStatsView == STATS_VIEW_IVS ? sText_IvPrefix : sText_EvPrefix);
+        ConvertIntToDecimalStringN(tempStr, GetMonData(&sMonSummaryScreen->currentMon, ids[0]), STR_CONV_MODE_LEFT_ALIGN, 3);
+        StringAppend(sMonSummaryScreen->summary.curHpStrBuf, tempStr);
+        sMonSkillsPrinterXpos->curHpStr = GetNumberRightAlign63(sMonSummaryScreen->summary.curHpStrBuf);
+
+        // statValueStrBufs is indexed ATK, DEF, SPA, SPD, SPE (PSS_STAT_*), like ids[1..5]
+        for (i = 0; i < NUM_STATS - 1; i++)
+            ConvertIntToDecimalStringN(sMonSummaryScreen->summary.statValueStrBufs[i], GetMonData(&sMonSummaryScreen->currentMon, ids[i + 1]), STR_CONV_MODE_LEFT_ALIGN, 3);
+        sMonSkillsPrinterXpos->atkStr = GetNumberRightAlign27(sMonSummaryScreen->summary.statValueStrBufs[PSS_STAT_ATK]);
+        sMonSkillsPrinterXpos->defStr = GetNumberRightAlign27(sMonSummaryScreen->summary.statValueStrBufs[PSS_STAT_DEF]);
+        sMonSkillsPrinterXpos->spAStr = GetNumberRightAlign27(sMonSummaryScreen->summary.statValueStrBufs[PSS_STAT_SPA]);
+        sMonSkillsPrinterXpos->spDStr = GetNumberRightAlign27(sMonSummaryScreen->summary.statValueStrBufs[PSS_STAT_SPD]);
+        sMonSkillsPrinterXpos->speStr = GetNumberRightAlign27(sMonSummaryScreen->summary.statValueStrBufs[PSS_STAT_SPE]);
+        goto exp;
+    }
+
     hp = GetMonData(&sMonSummaryScreen->currentMon, MON_DATA_HP);
     ConvertIntToDecimalStringN(sMonSummaryScreen->summary.curHpStrBuf, hp, STR_CONV_MODE_LEFT_ALIGN, 3);
     StringAppend(sMonSummaryScreen->summary.curHpStrBuf, gText_Slash);
@@ -2214,6 +2256,7 @@ static void BufferMonSkills(void)
         sMonSkillsPrinterXpos->speStr = GetNumberRightAlign27(sMonSummaryScreen->summary.statValueStrBufs[PSS_STAT_SPE]);
     }
 
+exp:
     exp = GetMonData(&sMonSummaryScreen->currentMon, MON_DATA_EXP);
     ConvertIntToDecimalStringN(sMonSummaryScreen->summary.expPointsStrBuf, exp, STR_CONV_MODE_LEFT_ALIGN, 7);
     sMonSkillsPrinterXpos->expStr = GetNumberRightAlign63(sMonSummaryScreen->summary.expPointsStrBuf);

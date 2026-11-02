@@ -43,3 +43,17 @@ extra boxes must be inside the slots, not in a single-copy area.
   "the box is full" messages and the auto-send of caught Pokémon.
 - Tests: full boxes (17 × 30) through save cycles and torn saves; a retail save upgraded and every box checked;
   every field of every Pokémon compared before and after a save and reload.
+
+## Finding: EWRAM is full (first build, 2026-11-02)
+
+The linker reports EWRAM 261,040 of 262,144 bytes used (99.6%): **1,104 bytes free**. 17 boxes in RAM need 7,230 more
+bytes (3 boxes of 30 × 80, plus names and wallpapers), so the flash side is not the only limit.
+
+- The packed save needs no extra buffer: pack and unpack one sector at a time in the sector writer and reader.
+  Sector 0 holds the header (current box, 17 names, 17 wallpapers: 171 bytes) and 57 Pokémon, sectors 1-8 hold
+  60 each (3,960 bytes): 537 slots for the 510 needed.
+- The 7,230 bytes of RAM have to come from the heap (`gHeap`, 0x1C000 = 114,688 bytes, at the start of EWRAM).
+  Shrinking it is only safe once the heap's peak use is measured in every screen that allocates from it (PC,
+  Pokédex, summary, bag, battle, trainer card, town map, Fame Checker, naming screen, Teachy TV, Quest Log, link
+  rooms). Plan: a debug build that records the peak `Alloc` total, walked through those screens with the harness.
+- The box change lands only if the measured peak leaves at least the 7,230 bytes plus a safety margin.

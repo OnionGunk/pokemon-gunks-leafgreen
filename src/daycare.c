@@ -1153,10 +1153,12 @@ static bool8 TryProduceOrHatchEgg(struct DayCare *daycare)
             TriggerPendingDaycareEgg();
     }
 
-    // Hatch Egg
-    if (++daycare->stepCounter == 255)
+    // Hatch Egg: Gunk's halves the cycle, 128 steps instead of 256
+    if (++daycare->stepCounter >= 128)
     {
         u32 steps;
+
+        daycare->stepCounter = 0;
 
         for (i = 0; i < gPlayerPartyCount; i++)
         {

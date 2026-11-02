@@ -1,16 +1,55 @@
-# Pokémon FireRed and LeafGreen
+# Pokémon Gunk's LeafGreen Version
 
-This is a decompilation of English Pokémon FireRed and LeafGreen.
+A quality-of-life hack of Pokémon LeafGreen, built on [pret's FireRed/LeafGreen decompilation](https://github.com/pret/pokefirered).
+It keeps the game's difficulty and story as they are and takes the grind and friction out, for long playthroughs.
 
-It builds the following ROM images:
+**Status: in development.** There is no release yet. [`docs/GUNK_CHANGES.md`](docs/GUNK_CHANGES.md) tracks
+each change and its test results.
 
-* [**pokefirered.gba**](https://datomatic.no-intro.org/?page=show_record&s=23&n=1616) `sha1: 41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc`
-* [**pokeleafgreen.gba**](https://datomatic.no-intro.org/?page=show_record&s=23&n=1617) `sha1: 574fa542ffebb14be69902d1d36f1ec0a4afd71e`
-* [**pokefirered_rev1.gba**](https://datomatic.no-intro.org/?page=show_record&s=23&n=1672) `sha1: dd5945db9b930750cb39d00c84da8571feebf417`
-* [**pokeleafgreen_rev1.gba**](https://datomatic.no-intro.org/index.php?page=show_record&s=23&n=1668) `sha1: 7862c67bdecbe21d1d69ce082ce34327e1c6ed5e`
-* [**pokefirered_switch.gba**](https://datomatic.no-intro.org/index.php?page=show_record&s=23&n=x550) `sha1: baa452d0b24629dd7782cfc07a8984085dde1311`
-* [**pokeleafgreen_switch.gba**](https://datomatic.no-intro.org/index.php?page=show_record&s=23&n=x551) `sha1: 62b9fc77549dbc67032eb6cbd0ea6ad3b825690f`
+## Features (planned)
 
-To set up the repository, see [INSTALL.md](INSTALL.md).
+- **DexNav.** See each route's Pokémon (caught, seen or unseen) and search for one in the grass.
+- **Pokémon follow you.**
+- **More PC boxes**, if the save layout allows it safely (see [`docs/PC_BOXES_PLAN.md`](docs/PC_BOXES_PLAN.md)).
+- **Faster play:** instant text, a faster EXP bar, auto-run, faster egg hatching.
+- **Items:** reusable TMs, two registered items, bag sorting, a prompt to use another Repel when one runs out,
+  and an Endless Repel toggle.
+- **Pokémon:** IV and EV view in the summary, Exp. All, vitamins up to 252 EVs, and trade evolutions without
+  trading. HM moves work without teaching the move, and every Pokémon Center has a Move Tutor.
 
-For contacts and other pret projects, see [pret.github.io](https://pret.github.io/).
+Save safety comes first: every build has to pass an emulator test suite that covers save cycles, power cuts
+right after and during a save, and damaged-save recovery. The suite runs on the unmodified game too, as the control.
+
+## Play it
+
+Releases will ship a **BPS patch**, not a ROM. You need your own dump of **Pokémon LeafGreen (USA)**, version 1.0:
+
+```
+sha1: 574fa542ffebb14be69902d1d36f1ec0a4afd71e
+```
+
+1. Download the `.bps` file from [Releases](../../releases).
+2. Apply it to your ROM with [Rom Patcher JS](https://www.marcrobledo.com/RomPatcher.js/) (in the browser),
+   Floating IPS, or `py tools/patch/bps.py apply <leafgreen.gba> <patch.bps> <out.gba>`.
+3. Play the result in any GBA emulator or flashcart. The patcher checks your ROM first and refuses the wrong one.
+
+Back up your save before updating.
+
+## Build it
+
+Follow pret's [`INSTALL.md`](INSTALL.md), then run `make leafgreen`. `make compare_leafgreen` on the upstream
+code reproduces the retail ROM byte for byte. [`docs/ENGINE.md`](docs/ENGINE.md) explains why this hack uses
+the decompilation.
+
+## Credits
+
+- [pret](https://github.com/pret/pokefirered) for the FireRed/LeafGreen decompilation this hack is built on,
+  and [agbcc](https://github.com/pret/agbcc).
+- [pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion) contributors: the DexNav
+  (originally by Ghoulslash) and following-Pokémon implementations this hack's versions are based on.
+- The DexNav idea comes from later Pokémon games and fan hacks such as Pokémon Unbound.
+- Gunk's [Platinum](https://github.com/OnionGunk/pokemon-gunks-platinum) and FireRed hacks, which share
+  features and code with this one.
+
+Pokémon is © Nintendo, Creatures Inc. and GAME FREAK inc. This is a non-commercial fan project and contains
+no ROM data; you need your own legally dumped copy of the game.

@@ -6,7 +6,7 @@ Usage:
   py -3 emu.py stop                 close the EmuHawk this instance started (and no other)
   py -3 emu.py dir                  print this instance's folder
 
-Isolation from other sessions' emulators: this harness has its own BizHawk copy (firered-tools\\bizhawk-fr), with the executable
+Isolation from other sessions' emulators: this harness has its own BizHawk copy (leafgreen-tools\\bizhawk), with the executable
 renamed EmuHawk-fr.exe so another session's "taskkill /IM EmuHawk.exe" cannot reach it, and stop kills only the PID
 this instance started. Each instance (env EMU_INSTANCE, default "main") has its own folder inst\\<name>\\ holding the
 bridge's command files, a bridge.lua pointed at that folder, the BizHawk config, the GBA SaveRAM / savestate folders
@@ -26,7 +26,7 @@ DIR = os.path.join(HERE, "inst", INSTANCE)
 CMD = os.path.join(DIR, "cmd.txt")
 DONE = os.path.join(DIR, "done.txt")
 PIDFILE = os.path.join(DIR, "emuhawk.pid")
-EMUHAWK = os.environ.get("EMUHAWK", r"C:\Projects\firered-tools\bizhawk-fr\EmuHawk-fr.exe")
+EMUHAWK = os.environ.get("EMUHAWK", r"C:\Projects\leafgreen-tools\bizhawk\EmuHawk-lg.exe")
 
 SHORTHAND = {
     "a": "press A 6", "b": "press B 6", "x": "press X 6", "y": "press Y 6",
@@ -93,7 +93,7 @@ def test_config():
 def bridge_script():
     """bridge.lua with its command folder pointed at this instance's folder."""
     src = open(os.path.join(HERE, "bridge.lua"), encoding="utf-8").read()
-    old = 'local DIR = "C:/Projects/pokemon-firered-gunk/emu/"'
+    old = 'local DIR = "C:/Projects/pokemon-leafgreen-gunk/emu/"'
     assert old in src, "bridge.lua's DIR line changed"
     dst = os.path.join(DIR, "bridge.lua")
     open(dst, "w", encoding="utf-8").write(src.replace(old, 'local DIR = "%s/"' % DIR.replace(os.sep, "/")))

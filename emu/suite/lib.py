@@ -1,4 +1,4 @@
-"""Game-level helpers for the FireRed test suite: symbols from the build's ELF, field and menu navigation,
+"""Game-level helpers for the LeafGreen test suite: symbols from the build's ELF, field and menu navigation,
 in-game saving, power cycles and flash (SRAM) images.
 
 Flash layout (src/save.c): 32 sectors of 4 KB. Sectors 0-13 are save slot 1, 14-27 slot 2, 28-29 Hall of Fame,

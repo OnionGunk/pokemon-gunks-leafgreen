@@ -1,4 +1,4 @@
-"""Feature checks for Gunk's FireRed, in the emulator.
+"""Feature checks for Gunk's LeafGreen, in the emulator.
 
 Usage: py -3 emu/suite/features.py <rom.gba> <rom.elf> [check ...]
 
@@ -143,7 +143,7 @@ class Features:
     # --- checks ---
     def check_header(self):
         title = bytes.fromhex(self.g.cmd("read 0x080000A0 16")[0].replace(" ", ""))
-        self.record("header", title[:12] == b"GUNK FR\0\0\0\0\0" and title[12:16] == b"BPRE", repr(title))
+        self.record("header", title[:12] == b"GUNK LG\0\0\0\0\0" and title[12:16] == b"BPGE", repr(title))
 
     def check_text_speed_default(self):
         speed = self.g.u8(self.sb2() + SB2_OPTIONS) & 7

@@ -19,7 +19,7 @@
 --   lua <code>                   run a Lua chunk; its return value goes to done.txt
 --   resume                       leave the game running after this batch
 
-local DIR = "C:/Projects/pokemon-firered-gunk/emu/"
+local DIR = "C:/Projects/pokemon-leafgreen-gunk/emu/"
 local CMD = DIR .. "cmd.txt"
 local DONE = DIR .. "done.txt"
 local BUS = "System Bus"

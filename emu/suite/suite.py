@@ -1,4 +1,4 @@
-"""Save-safety suite for Gunk's FireRed.
+"""Save-safety suite for Gunk's LeafGreen.
 
 Usage: py -3 emu/suite/suite.py <rom.gba> <rom.elf> [test ...]
 Tests: cycles crash torn mixed damaged (default: all). Results go to emu/suite/out/<rom name>/.

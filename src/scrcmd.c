@@ -1792,6 +1792,34 @@ bool8 ScrCmd_checkpartymove(struct ScriptContext * ctx)
             break;
         }
     }
+
+    // Gunk's: an HM move works without teaching it, if you have the HM and a party Pokémon could learn it.
+    // The scripts still check the badge.
+    if (gSpecialVar_Result == PARTY_SIZE)
+    {
+        u16 hm;
+
+        for (hm = ITEM_HM01; hm <= ITEM_HM08; hm++)
+        {
+            if (ItemIdToBattleMoveId(hm) == moveId && CheckBagHasItem(hm, 1))
+                break;
+        }
+        if (hm <= ITEM_HM08)
+        {
+            for (i = 0; i < PARTY_SIZE; i++)
+            {
+                u16 species = GetMonData(&gPlayerParty[i], MON_DATA_SPECIES, NULL);
+                if (!species)
+                    break;
+                if (!GetMonData(&gPlayerParty[i], MON_DATA_IS_EGG) && CanMonLearnTMHM(&gPlayerParty[i], hm - ITEM_TM01))
+                {
+                    gSpecialVar_Result = i;
+                    gSpecialVar_0x8004 = species;
+                    break;
+                }
+            }
+        }
+    }
     return FALSE;
 }
 

@@ -121,6 +121,18 @@ void RunTextPrinters(void)
         if (sTextPrinters[i].active)
         {
             u16 renderCmd = RenderFont(&sTextPrinters[i]);
+
+            // Gunk's instant text: on the FAST setting, a printer at the FAST delay draws a whole page in one
+            // frame. It still stops for button prompts, pauses, sound waits and scrolling.
+            if (gSaveBlock2Ptr->optionsTextSpeed == OPTIONS_TEXT_SPEED_FAST
+             && sTextPrinters[i].textSpeed == 1 && !gTextFlags.autoScroll)
+            {
+                while (renderCmd == RENDER_PRINT && sTextPrinters[i].state == RENDER_STATE_HANDLE_CHAR)
+                {
+                    sTextPrinters[i].delayCounter = 0;
+                    renderCmd = RenderFont(&sTextPrinters[i]);
+                }
+            }
             switch (renderCmd)
             {
             case RENDER_PRINT:

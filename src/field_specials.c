@@ -12,6 +12,7 @@
 #include "battle.h"
 #include "fieldmap.h"
 #include "field_specials.h"
+#include "item.h"
 #include "region_map.h"
 #include "task.h"
 #include "battle_tower.h"
@@ -2552,4 +2553,13 @@ static void Task_WingFlapSound(u8 taskId)
     }
     if (data[0] == gSpecialVar_0x8004 - 1)
         DestroyTask(taskId);
+}
+
+// Gunk's Repel prompt: the wore-off script calls this after the player says yes to using another.
+void Gunk_UseLastRepel(void)
+{
+    u16 item = VarGet(VAR_LAST_REPEL_USED);
+
+    VarSet(VAR_REPEL_STEP_COUNT, ItemId_GetHoldEffectParam(item));
+    RemoveBagItem(item, 1);
 }

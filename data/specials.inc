@@ -453,3 +453,4 @@ gSpecials::
 	def_special LoopWingFlapSound
 	def_special CreateEnemyEventMon
 gSpecialsEnd::
+	def_special Gunk_UseLastRepel

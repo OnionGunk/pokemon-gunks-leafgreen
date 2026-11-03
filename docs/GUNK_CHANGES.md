@@ -96,6 +96,20 @@ LeafGreen script uses, so the save layout is unchanged: a Gunk's LeafGreen save 
   the Poké Flute, and the Champion through the Hall of Fame, its save, the credits and CONTINUE: 11/11 match
   vanilla, and on Gunk's each survives a save, power cycle and CONTINUE with the follower in color.
 
+## The DexNav peek (2026-11-03, build `50fcd11a`)
+
+FireRed's fix for the half-second stall on reaching the patch (e7a31fa48, finding #8): each roll is only peeked at
+(the random numbers it draws), and the best one is made from the RNG state it started at.
+- `emu/suite/dexnav_lag.py`: the worst step onto the patch loses 3 frames with 1 roll and 6 with 21 rolls (search
+  level 100, chain 40); FireRed lost up to 33 before the fix.
+- `emu/suite/dexnav_peek.py` (new): exec hooks on the peek and on the real roll. 12/12 searches (6 plain, 6 of 21
+  rolls, on Routes 1 and 2 and in Viridian Forest) start the real roll at the best peek's seed and make a Pokemon
+  with that peek's PID and IV total.
+- PKHeX.Core 26.10.18: 51 caught Pokemon (wild, DexNav, chain, a shiny, Unown from all seven Tanoby chambers and the
+  peek check's) and their PC-box copies, all legal; the same PID/IV methods as before.
+- `suite.py` 35/35, `features.py` 29/29, `boxes.py` 16/16, `dexnav_rules.py` 5/5. The story sweep and milestones
+  above ran on `4e1aa569`, before this change, which touches only the DexNav's rolls.
+
 ## Not done yet
 
 - Talking to the follower does nothing (vanilla would read a garbage script; it is skipped).

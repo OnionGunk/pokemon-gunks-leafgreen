@@ -115,6 +115,55 @@ def triggers():
     return out
 
 
+# A talk target's script changes story state if it (or what it goes to or calls, three levels deep, in the same
+# file) sets a flag or var, gives an item or a Pokemon, starts a battle, warps, or adds or removes an object.
+STATEFUL = re.compile(r"^\s*(setflag|clearflag|setvar|addvar|giveitem\w*|givemon|giveegg|trainerbattle\w*|setwildbattle"
+                      r"|dowildbattle|warp\w*|removeobject|addobject|checkitemspace)\b", re.M)
+
+
+def script_labels(folder):
+    path = os.path.join(REPO, "data/maps", folder, "scripts.inc")
+    labels, cur = {}, None
+    if os.path.exists(path):
+        for line in open(path, encoding="utf8"):
+            m = re.match(r"^(\w+)::?\s*$", line)
+            if m:
+                cur = m.group(1)
+                labels[cur] = []
+            elif cur:
+                labels[cur].append(line)
+    return labels
+
+
+def talk_targets():
+    """[("talk", map folder, None, None, x, y, script)]: every person (not a trainer) whose script changes story
+    state (STATEFUL)."""
+    out = []
+    for folder, m in maps().items():
+        if m["link"]:
+            continue
+        labels = None
+        for o in m.get("object_events") or []:
+            script = o.get("script", "")
+            if not script or script == "0" or o.get("trainer_type", "TRAINER_TYPE_NONE") != "TRAINER_TYPE_NONE":
+                continue
+            labels = labels if labels is not None else script_labels(folder)
+            seen, todo = set(), [(script, 0)]
+            while todo:
+                label, depth = todo.pop()
+                if label in seen or label not in labels:
+                    continue
+                seen.add(label)
+                body = "".join(labels[label])
+                if STATEFUL.search(body):
+                    out.append(("talk", folder, None, None, o["x"], o["y"], script))
+                    break
+                if depth < 3:
+                    todo += [(target, depth + 1) for target in
+                             re.findall(r"\b(?:goto|call)(?:_if_\w+)?\s+(?:[^,\n]+,\s*)*?(\w+)\s*$", body, re.M)]
+    return out
+
+
 def neighbour(folder, x, y):
     """A free tile next to (x, y) and the direction from it onto (x, y), or None."""
     spots = neighbours(folder, x, y)
@@ -218,12 +267,32 @@ class Runner:
         g = self.g
         g.cmd(f"load {self.state}")
         sb1 = self.sb1()
-        g.cmd(f"write16 {sb1 + SB1_VARS + (self.vars[var] - 0x4000) * 2} {val}",
-              f"write8 {sb1 + SB1_CONTINUE_WARP} {m['group']}", f"write8 {sb1 + SB1_CONTINUE_WARP + 1} {m['num']}",
+        if var is not None:
+            g.cmd(f"write16 {sb1 + SB1_VARS + (self.vars[var] - 0x4000) * 2} {val}")
+        g.cmd(f"write8 {sb1 + SB1_CONTINUE_WARP} {m['group']}", f"write8 {sb1 + SB1_CONTINUE_WARP + 1} {m['num']}",
               f"write8 {sb1 + SB1_CONTINUE_WARP + 2} {warp_id}",
               f"write16 {sb1 + SB1_CONTINUE_WARP + 4} {wx}", f"write16 {sb1 + SB1_CONTINUE_WARP + 6} {wy}",
               f"write8 {self.sb2() + 9} {g.u8(self.sb2() + 9) | 1}")
         g.cmd("press A 4", "wait 30")  # CONTINUE
+
+    def play_talk(self, res, m, x, y):
+        """Stand next to the person, face them, A. A person who walks may not be there: the next free tile is tried."""
+        g = self.g
+        spots = neighbours(res["map"], x, y)
+        if not spots:
+            return dict(res, result="skipped", why="no free tile next to them")
+        began = False
+        for wx, wy, direction in spots:
+            self.arrive(m, None, None, wx, wy, 255)
+            if not g.wait_field(press="A", max_steps=120):
+                return dict(res, result="setup", why="the field never came up after CONTINUE")
+            g.cmd(f"press {direction} 2", "wait 10", "press A 4", "wait 30")
+            if self.script_running():
+                began = True
+                break
+        if not began:
+            return dict(res, result="not started", outcome=self.outcome())
+        return self.play_out(res)
 
     def script_running(self):
         g = self.g
@@ -234,6 +303,8 @@ class Runner:
         g = self.g
         m = neighbour.cache[folder]
         res = {"kind": kind, "map": folder, "var": var, "value": value, "x": x, "y": y, "script": script}
+        if kind == "talk":
+            return self.play_talk(res, m, x, y)
         if var not in self.vars:
             return dict(res, result="skipped", why="unknown var")
         try:
@@ -271,6 +342,12 @@ class Runner:
                     break
         if not began:
             return dict(res, result="not started", outcome=self.outcome())
+        return self.play_out(res)
+
+    def play_out(self, res):
+        """A script is running: A until the player can walk again (or it hangs, or runs past the press limit)."""
+        g = self.g
+        folder, x, y = res["map"], res["x"], res["y"]
         frames = int(g.cmd(f"alive {g.a('gMain') + 0x24} 30")[0].split()[1])
         settled = 0
         for i in range(600):
@@ -291,9 +368,9 @@ class Runner:
         return dict(res, result="unfinished", outcome=self.outcome())
 
 
-def run(rom, elf, out, first=0, count=100000):
+def run(rom, elf, out, first=0, count=100000, targets=None):
     r = Runner(rom, elf, out)
-    todo = triggers()[first:first + count]
+    todo = (targets if targets is not None else triggers())[first:first + count]
     done = set()
     if os.path.exists(out):
         done = {(d["kind"], d["map"], d["var"], d["value"], d["x"], d["y"]) for d in map(json.loads, open(out))}
@@ -376,9 +453,10 @@ def compare(gunk_path, vanilla_path):
 
 
 if __name__ == "__main__":
-    if sys.argv[1] == "run":
+    if sys.argv[1] in ("run", "run-talk"):
         a = sys.argv[2:]
         run(os.path.abspath(a[0]), os.path.abspath(a[1]), os.path.abspath(a[2]),
-            int(a[3]) if len(a) > 3 else 0, int(a[4]) if len(a) > 4 else 100000)
+            int(a[3]) if len(a) > 3 else 0, int(a[4]) if len(a) > 4 else 100000,
+            talk_targets() if sys.argv[1] == "run-talk" else None)
     else:
         sys.exit(compare(sys.argv[2], sys.argv[3]))

@@ -67,6 +67,12 @@ from a chain search whose RNG seed was searched, not edited) plus their 25 box c
 copy changed. Methods 1, 2 and 4, all of which FRLG grass encounters produce. DexNav keeps one of its rolls
 unedited, each a vanilla wild generation, so a shiny is a full legal reroll.
 
+Tanoby chambers (`emu/suite/legality_unown.py`): an Unown's letter comes from its PID, and each chamber allows only
+its own letters. DexNav places its patch only on tall grass, which the chambers don't have, so it never starts a
+search there, locked or unlocked: Unown come only from the vanilla encounter, which needs the Tanoby Key puzzle's
+flag as in vanilla. With the chambers unlocked, 2 wild Unown from each of the 7 chambers (A A, H D, N N, R P, Y G,
+X V, Z Z) plus their box copies: 28 legal, 0 illegal; DexNav and chain searches started none.
+
 ## Not done yet
 
 - Talking to the follower does nothing (vanilla would read a garbage script; it is skipped).

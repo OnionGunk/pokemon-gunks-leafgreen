@@ -14,7 +14,7 @@ at each step; [`docs/GUNK_CHANGES.md`](docs/GUNK_CHANGES.md) lists each change a
 - **16 PC boxes** instead of 14. A save from vanilla LeafGreen loads, with its boxes kept.
 - **Faster play:** an INSTANT text speed, a faster EXP bar, auto-run, faster egg hatching.
 - **Items:** reusable TMs, two registered items (SELECT and R), bag sorting (START), a prompt to use another
-  Repel when one runs out, and an Endless Repel toggle. The new key items come from Oak's aide in Pewter City.
+  Repel when one runs out, and an Endless Repel toggle. The new key items come from Oak with the Pokédex, before the first gym.
 - **Pokémon:** IV and EV view in the summary, Exp. All, vitamins up to 252 EVs, and trade evolutions without
   trading. HM moves work without teaching the move, and every Pokémon Center PC has a Move Tutor.
 

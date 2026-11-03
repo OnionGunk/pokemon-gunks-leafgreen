@@ -1,6 +1,12 @@
-@ Gunk's: the Endless Repel, the Exp. All and the DexNav. Oak's aide hands them over with the Running Shoes in
-@ Pewter City; on a save that is already past that, Mom has them. Items already in the bag are skipped, so a
-@ full bag never loses one: the flag is set only once all three are there.
+@ Gunk's: the Endless Repel, the Exp. All and the DexNav. Oak gives them with the Pokedex, after the parcel and
+@ before Brock (a step of the story no one can skip). On a save already past that, Mom has them; Oak's aide in
+@ Pewter offers them too. Items already in the bag are skipped, so a full bag never loses one: the flag is set
+@ only once all three are there.
+PalletTown_ProfessorOaksLab_EventScript_GunkOakGivesKeyItems::
+	goto_if_set FLAG_GUNK_GOT_KEY_ITEMS, EventScript_GunkKeyItemsEnd
+	msgbox Text_GunkOakAlsoGives
+	goto EventScript_GunkGiveKeyItems
+
 PewterCity_EventScript_GunkAideGivesKeyItems::
 	goto_if_set FLAG_GUNK_GOT_KEY_ITEMS, EventScript_GunkKeyItemsEnd
 	msgbox Text_GunkAideAlsoGives
@@ -35,8 +41,12 @@ Text_GunkAideAlsoGives::
 	.string "PROF. OAK also asked me to give\n"
 	.string "you these.$"
 
+Text_GunkOakAlsoGives::
+	.string "OAK: And these will help you on\n"
+	.string "your journey.$"
+
 Text_GunkMomHasKeyItems::
-	.string "Oh, {PLAYER}! PROF. OAK's AIDE\n"
+	.string "Oh, {PLAYER}! PROF. OAK\n"
 	.string "left these for you.$"
 
 Text_GunkExplainKeyItems::

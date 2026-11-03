@@ -27,7 +27,7 @@ PalletTown_PlayersHouse_1F_EventScript_MomHeal::
 	closemessage
 	call EventScript_OutOfCenterPartyHeal
 	msgbox PalletTown_PlayersHouse_1F_Text_LookingGreatTakeCare
-	call_if_set FLAG_SYS_B_DASH, PalletTown_PlayersHouse_1F_EventScript_GunkMomGivesKeyItems
+	call_if_set FLAG_SYS_POKEDEX_GET, PalletTown_PlayersHouse_1F_EventScript_GunkMomGivesKeyItems
 	release
 	end
 

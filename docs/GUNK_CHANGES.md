@@ -28,8 +28,9 @@ suite), both run after every build, plus `emu/suite/boxes.py` for the PC boxes. 
 | 18 | DexNav | — | Key item (slot 54): lists the map's grass Pokémon; the chosen one hides in rustling grass nearby. Normal wild rolls; the search level and chain set how many are rolled (the best is kept). Search data in SaveBlock1's unused 400 bytes | done | "dexnav", "dexnav search level" |
 | 19 | Following Pokémon | — | The lead walks behind the player: all 386 species, shinies in shiny colors. Movement ported from MinimalEffort07/pokefirered; sprites from pokeemerald-expansion. RETURN on the lead's party menu puts it away (flag 0x4AA), WALK brings it back. Its palette goes through the field tint like every NPC's, so the quest log ("Previously on your quest") restores it | done | `league.py` follower colors after 17 quest-log Continues, "follower on/off switch", "follower", "follower and Surf", "follower across a map edge", "follower through a door", "follower and saving", "follower palette after a menu", "story opening" |
 
-The three new key items come from Oak's aide in Pewter City with the Running Shoes, or from Mom on a save that is
-already past that ("Pewter aide gives the key items", "Mom gives the key items").
+The three new key items come from Oak with the Pokédex, when the parcel is delivered: before Brock, and the
+parcel can't be skipped ("Oak gives the key items with the Pokedex"). A save already past that gets them from Mom
+("Mom gives the key items"); Oak's aide in Pewter still offers them, which does nothing once they're owned.
 
 ## Map sweep
 

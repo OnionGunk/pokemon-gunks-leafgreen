@@ -29,6 +29,11 @@ MAP_ROUTE2 = (3, 20)
 FLAG_BADGE01_GET = 0x820
 FLAG_BADGE02_GET = 0x821
 FLAG_SYS_POKEMON_GET = 0x828
+FLAG_SYS_POKEDEX_GET = 0x829
+ITEM_OAKS_PARCEL = 349
+VAR_MAP_SCENE_PALLET_TOWN_PROFESSOR_OAKS_LAB = 0x4055
+VAR_MAP_SCENE_VIRIDIAN_CITY_MART = 0x4057
+MAP_OAKS_LAB = (4, 3)
 ITEM_TM_CASE = 364
 ITEM_TM09 = 297
 ITEM_HM01 = 339
@@ -579,6 +584,18 @@ class Features:
     def key_items_given(self):
         return [self.bag_count(i, SB1_BAG_KEY, 30) for i in (ITEM["ENDLESS_REPEL"], ITEM["EXP_ALL"], ITEM["DEXNAV"])]
 
+    def check_oak_gift(self):
+        """The parcel delivered (the Mart's scene var 1, the parcel in the bag, Oak and the rival in the lab): Oak's
+        Pokedex scene also hands over the three key items, before Brock."""
+        g = self.g
+        g.cmd("press Up 2", "wait 20", "press A 4", "wait 40")
+        g.wait_field(press="A", max_steps=900, settle=4)
+        items = self.key_items_given()
+        self.shot("oak_after.png")
+        self.record("Oak gives the key items with the Pokedex", items == [1, 1, 1] and self.flag(FLAG_SYS_POKEDEX_GET) == 1
+                    and self.flag(0x4A9) == 1, f"Endless Repel, Exp. All, DexNav {items}, "
+                    f"Pokedex {self.flag(FLAG_SYS_POKEDEX_GET)}, Boulder Badge {self.flag(FLAG_BADGE01_GET)}")
+
     def check_pewter_aide_gift(self):
         """After Brock (scene var 1, the aide shown): the Running Shoes scene also hands over the three key items."""
         g = self.g
@@ -758,6 +775,14 @@ def main():
         f.check_trade_item_as_stone()
         f.new_game(name="story")
         f.check_story_opening()
+        f.new_game(mons=[(SPECIES["BULBASAUR"], 5)], items=[(ITEM_OAKS_PARCEL, 1)],
+                   flags=[FLAG_SYS_POKEMON_GET, 0x028, 0x029, 0x02A], name="oak")
+        f.set_var(VAR_MAP_SCENE_PALLET_TOWN_PROFESSOR_OAKS_LAB, 4)  # after the first rival battle
+        f.set_var(VAR_MAP_SCENE_VIRIDIAN_CITY_MART, 1)  # the parcel picked up
+        for flag in (0x02B, 0x02D, 0x03A):  # show Oak, the rival and the Pokedexes in the lab
+            f.clear_flag(flag)
+        f.warp(*MAP_OAKS_LAB, 6, 4, name="oak_warp")
+        f.check_oak_gift()
         f.new_game(mons=[(SPECIES["BULBASAUR"], 12)], flags=[FLAG_SYS_POKEMON_GET, FLAG_BADGE01_GET], name="pewter")
         f.set_var(0x406C, 1)
         f.clear_flag(0x092)

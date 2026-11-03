@@ -51,7 +51,7 @@ sha1: TBD (set when the new title logo is in; the draft build without it is 4e1a
   - every feature, Quick Ball and the DexNav search rules;
   - a vanilla save with 420 boxed Pokémon converting byte for byte;
   - every map's arrival, compared with vanilla;
-  - STORY_TRIGGERS_TBD
+  - all 256 story triggers, compared with vanilla;
   - the eight gyms, each Elite Four member and the Champion, the Hall of Fame and the credits, compared with
     vanilla;
   - a PKHeX legality check: 65 caught Pokémon, from random encounters, DexNav searches and chains to a shiny, Unown

@@ -85,6 +85,17 @@ features 29/29. Legality again on this build: 24 catches (12 wild, 6 DexNav, 5 c
 LeafGreen script uses, so the save layout is unchanged: a Gunk's LeafGreen save from before this loads as it was
 (the widget starts on the Poké Ball until a ball is thrown).
 
+## Story triggers and milestones (2026-11-03, build `4e1aa569`)
+
+- **Story triggers** (FireRed's `emu/suite/story.py`): all 256 var-gated triggers and on-arrival map scripts, played
+  on Gunk's and on vanilla from the same setup. 149 scenes finish on both and none ends with other vars, flags, map
+  or party than vanilla's; 0 fail. 5 don't finish in vanilla either (the League and credits scenes, longer than the
+  sweep's press limit, and the Marowak ghost, which needs the Silph Scope); 81 aren't started by the setup and 21
+  are skipped (link and minigame states), the same on both.
+- **Milestones** (FireRed's `emu/suite/milestones.py`): the eight gym leaders, the S.S. Anne captain, Snorlax with
+  the Poké Flute, and the Champion through the Hall of Fame, its save, the credits and CONTINUE: 11/11 match
+  vanilla, and on Gunk's each survives a save, power cycle and CONTINUE with the follower in color.
+
 ## Not done yet
 
 - Talking to the follower does nothing (vanilla would read a garbage script; it is skipped).

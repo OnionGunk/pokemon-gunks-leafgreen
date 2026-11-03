@@ -39,6 +39,7 @@ FLAG_SYS_POKEMON_GET = 0x828
 # Gunk's own save data, and data a scene changes as a side effect (steps, the quest log, the follower's flag)
 GUNK_VARS = {0x4029, 0x402A}
 GUNK_FLAGS = set(range(0x4A7, 0x4AB))
+LOCALID_FOLLOWER = 254  # Gunk's follower's local id (vanilla has no object with it)
 DIRS = {"Up": (0, -1), "Down": (0, 1), "Left": (-1, 0), "Right": (1, 0)}
 
 
@@ -164,6 +165,17 @@ def talk_targets():
     return out
 
 
+def neighbours_free(folder, x, y):
+    """neighbours() for a person's live tile: the tile they left is free now, so their own map-file tile counts."""
+    m = neighbour.cache[folder]
+    saved = m.get("object_events")
+    m["object_events"] = [o for o in saved or [] if (o["x"], o["y"]) != (x, y)]
+    try:
+        return neighbours(folder, x, y)
+    finally:
+        m["object_events"] = saved
+
+
 def neighbour(folder, x, y):
     """A free tile next to (x, y) and the direction from it onto (x, y), or None."""
     spots = neighbours(folder, x, y)
@@ -275,21 +287,50 @@ class Runner:
               f"write8 {self.sb2() + 9} {g.u8(self.sb2() + 9) | 1}")
         g.cmd("press A 4", "wait 30")  # CONTINUE
 
+    def object_pos(self, local_id):
+        """The live map tile of the active object with this local id (a map object's is its 1-based index), or None."""
+        objs = self.g.a("gObjectEvents")
+        for i in range(16):
+            raw = self.read(objs + i * 0x24, 0x14)
+            if raw[0] & 1 and raw[8] == local_id:
+                x, y = struct.unpack_from("<hh", raw, 0x10)
+                return x - 7, y - 7
+        return None
+
     def play_talk(self, res, m, x, y):
-        """Stand next to the person, face them, A. A person who walks may not be there: the next free tile is tried."""
+        """Stand next to the person, face them, A. People who wander aren't on their map-file tile by the time the
+        player arrives: their live tile is read (gObjectEvents, by local id) and approached instead. The run is
+        the same every time from the savestate, so after reloading they are on that tile at that moment again."""
         g = self.g
-        spots = neighbours(res["map"], x, y)
-        if not spots:
-            return dict(res, result="skipped", why="no free tile next to them")
+        local_id = next((i + 1 for i, o in enumerate(m.get("object_events") or [])
+                         if (o["x"], o["y"], o.get("script")) == (x, y, res["script"])), None)
+        targets, tried = [(x, y)], set()
         began = False
-        for wx, wy, direction in spots:
-            self.arrive(m, None, None, wx, wy, 255)
-            if not g.wait_field(press="A", max_steps=120):
-                return dict(res, result="setup", why="the field never came up after CONTINUE")
-            g.cmd(f"press {direction} 2", "wait 10", "press A 4", "wait 30")
-            if self.script_running():
-                began = True
-                break
+        while targets and not began:
+            tx, ty = targets.pop(0)
+            if (tx, ty) in tried:
+                continue
+            tried.add((tx, ty))
+            spots = neighbours(res["map"], tx, ty) if (tx, ty) == (x, y) else neighbours_free(res["map"], tx, ty)
+            for wx, wy, direction in spots:
+                self.arrive(m, None, None, wx, wy, 255)
+                if not g.wait_field(press="A", max_steps=120):
+                    return dict(res, result="setup", why="the field never came up after CONTINUE")
+                live = self.object_pos(local_id) if local_id else None
+                if live is not None and live != (tx, ty):
+                    targets.append(live)  # they have wandered: go to where they are now
+                    break
+                g.cmd(f"write16 {g.a('gSpecialVar_LastTalked')} 0", f"press {direction} 2", "wait 10", "press A 4",
+                      "wait 30")
+                talked = struct.unpack("<H", self.read(g.a("gSpecialVar_LastTalked"), 2))[0]
+                if self.script_running() and talked == LOCALID_FOLLOWER:
+                    # the person isn't on the map (hidden by a flag at this point of the story) and the player
+                    # faced Gunk's follower standing there instead: that's the follower's line, not their scene
+                    return dict(res, result="not started", why="talked to the follower: the person isn't here",
+                                outcome=self.outcome())
+                if self.script_running():
+                    began = True
+                    break
         if not began:
             return dict(res, result="not started", outcome=self.outcome())
         return self.play_out(res)
@@ -430,7 +471,10 @@ def compare(gunk_path, vanilla_path):
         label = f"{d['kind']} {d['map']} {d['var']}={d['value']} at ({d['x']},{d['y']}) {d['script']}"
         if v is None:
             continue
-        if d["result"] in ("unfinished", "hang", "error", "setup") and v["result"] == "finished":
+        if v["result"] in ("setup", "error"):
+            # vanilla's own run couldn't be set up there: nothing to compare against
+            setup.append(f"{label}: {d['result']} (vanilla: {v['result']})")
+        elif d["result"] in ("unfinished", "hang", "error", "setup") and v["result"] == "finished":
             failures.append(f"{label}: {d['result']} on Gunk's, finished in vanilla")
         elif d["result"] in ("unfinished", "hang", "error", "setup"):
             setup.append(f"{label}: {d['result']} (vanilla: {v['result']})")

@@ -51,4 +51,6 @@ The game keeps running in all of them. The first sweep found the cave hang fixed
   `leafgreen-tools` passes on retail and vanilla (save cycles, crash after a save, 10 live torn saves, 5 exact cuts,
   damaged-slot recovery).
 - Gunk's LeafGreen: `emu/suite/suite.py` 35/35, `emu/suite/features.py` 27/27.
-- The map sweep (`emu/suite/sweep.py`) hasn't been run on LeafGreen yet.
+- Map sweep (`emu/suite/sweep.py`): 394/397. The other 3 are the same story scenes as on FireRed (Hall of Fame,
+  One Island Pokémon Center with Bill, Two Island Game Corner), still playing when the sweep stops; the game keeps
+  running in all of them.

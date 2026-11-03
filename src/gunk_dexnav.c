@@ -13,6 +13,7 @@
 #include "pokedex.h"
 #include "pokemon.h"
 #include "random.h"
+#include "field_specials.h"
 #include "safari_zone.h"
 #include "script.h"
 #include "string_util.h"
@@ -317,8 +318,7 @@ bool8 Gunk_DexNavTryStartBattle(void)
 {
     s16 x, y;
     u8 rolls, i;
-    struct Pokemon best;
-    u32 bestScore = 0;
+    u32 bestScore = 0, bestSeed = 0, otId;
     bool8 haveBest = FALSE;
 
     if (!sSearch.active || sSearch.inBattle || !IsOnSearchMap())
@@ -328,32 +328,42 @@ bool8 Gunk_DexNavTryStartBattle(void)
     if (x != sSearch.x || y != sSearch.y)
         return FALSE;
 
+    // The rolls are only peeked at (the random numbers a roll draws, without making the Pokemon: 21 full ones cost
+    // half a second); then the RNG goes back to where the best one started and that one is made for real.
     rolls = GetRollCount(sSearch.species);
+    otId = GetPlayerTrainerId();
+    gGunkHoldVBlankRandom = TRUE; // VBlank's own Random() would make the replay differ from the peek
     for (i = 0; i < rolls; i++)
     {
-        u32 score;
-        u8 stat;
+        u32 seed = gRngValue, personality, score;
+        u8 ivTotal;
 
-        if (!Gunk_GenerateLandMonOfSpecies(sSearch.species))
+        if (!Gunk_PeekLandMonOfSpecies(sSearch.species, &personality, &ivTotal))
         {
+            gGunkHoldVBlankRandom = FALSE;
             EndSearch();
             return FALSE;
         }
-        score = 0;
-        for (stat = 0; stat < NUM_STATS; stat++)
-            score += GetMonData(&gEnemyParty[0], MON_DATA_HP_IV + stat);
-        if (IsMonShiny(&gEnemyParty[0]))
+        score = ivTotal;
+        if (GET_SHINY_VALUE(otId, personality) < SHINY_ODDS)
             score += 0x1000;
         if (!haveBest || score > bestScore)
         {
-            best = gEnemyParty[0];
+            bestSeed = seed;
             bestScore = score;
             haveBest = TRUE;
         }
         if (score >= 0x1000)
             break;
     }
-    gEnemyParty[0] = best;
+    gRngValue = bestSeed;
+    haveBest = Gunk_GenerateLandMonOfSpecies(sSearch.species);
+    gGunkHoldVBlankRandom = FALSE;
+    if (!haveBest)
+    {
+        EndSearch();
+        return FALSE;
+    }
 
     StopPatchSprite();
     sSearch.inBattle = TRUE;

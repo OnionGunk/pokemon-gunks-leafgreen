@@ -1861,7 +1861,10 @@ void CreateBoxMon(struct BoxPokemon *boxMon, u16 species, u8 level, u8 fixedIV, 
     GiveBoxMonInitialMoveset(boxMon);
 }
 
-void CreateMonWithNature(struct Pokemon *mon, u16 species, u8 level, u8 fixedIV, u8 nature)
+// Gunk's: CreateMonWithNature's personality loop as a function of its own, so that Gunk's DexNav, which peeks at
+// a wild roll's random numbers, draws them through this very code: Random32() is a macro of two Random() calls the
+// compiler may order either way, and only one function compiling it keeps the peek and the real roll the same.
+u32 Gunk_PersonalityWithNature(u8 nature)
 {
     u32 personality;
 
@@ -1870,8 +1873,12 @@ void CreateMonWithNature(struct Pokemon *mon, u16 species, u8 level, u8 fixedIV,
         personality = Random32();
     }
     while (nature != GetNatureFromPersonality(personality));
+    return personality;
+}
 
-    CreateMon(mon, species, level, fixedIV, TRUE, personality, OT_ID_PLAYER_ID, 0);
+void CreateMonWithNature(struct Pokemon *mon, u16 species, u8 level, u8 fixedIV, u8 nature)
+{
+    CreateMon(mon, species, level, fixedIV, TRUE, Gunk_PersonalityWithNature(nature), OT_ID_PLAYER_ID, 0);
 }
 
 void CreateMonWithGenderNatureLetter(struct Pokemon *mon, u16 species, u8 level, u8 fixedIV, u8 gender, u8 nature, u8 unownLetter)

@@ -380,6 +380,8 @@ void SetSerialCallback(IntrCallback callback)
 extern void CopyBufferedValuesToGpuRegs(void);
 extern void ProcessDma3Requests(void);
 
+EWRAM_DATA bool8 gGunkHoldVBlankRandom = FALSE; // EWRAM starts zeroed: FALSE
+
 static void VBlankIntr(void)
 {
     if (gWirelessCommType)
@@ -409,7 +411,10 @@ static void VBlankIntr(void)
 #endif
 
     TryReceiveLinkBattleData();
-    Random();
+    // Gunk's DexNav holds this while it peeks at its rolls and makes the best one, so that the roll it makes draws
+    // the same random numbers it peeked at (src/gunk_dexnav.c)
+    if (!gGunkHoldVBlankRandom)
+        Random();
     UpdateWirelessStatusIndicatorSprite();
 
     INTR_CHECK |= INTR_FLAG_VBLANK;

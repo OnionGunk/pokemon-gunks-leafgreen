@@ -4,6 +4,7 @@
 #include "global.h"
 
 extern u32 gRngValue;
+extern bool8 gGunkHoldVBlankRandom; // Gunk's: VBlank skips its Random() while set (src/main.c)
 extern u32 gRng2Value;
 
 //Returns a 16-bit pseudorandom number

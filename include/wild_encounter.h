@@ -44,6 +44,7 @@ u16 GetLocalWildMon(bool8 *isWaterMon);
 u16 GetLocalWaterMon(void);
 const struct WildPokemonInfo *Gunk_GetLandMonsInfo(void);
 bool8 Gunk_GenerateLandMonOfSpecies(u16 species);
+bool8 Gunk_PeekLandMonOfSpecies(u16 species, u32 *personality, u8 *ivTotal);
 bool8 UpdateRepelCounter(void);
 void DisableWildEncounters(bool8 state);
 u8 GetUnownLetterByPersonalityLoByte(u32 personality);

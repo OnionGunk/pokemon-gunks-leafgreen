@@ -612,6 +612,55 @@ bool8 Gunk_GenerateLandMonOfSpecies(u16 species)
     return TRUE;
 }
 
+// Gunk's DexNav: the random numbers Gunk_GenerateLandMonOfSpecies would draw, drawn in the same order (the slot
+// rerolls, the level, the nature, the personality until it has that nature, or for Unown until it has the chamber's
+// letter, then the two IV words), without making the Pokemon. With the RNG put back where it was, the real call
+// makes exactly the Pokemon this saw. *personality and *ivTotal (the six IVs added up) describe it.
+bool8 Gunk_PeekLandMonOfSpecies(u16 species, u32 *personality, u8 *ivTotal)
+{
+    const struct WildPokemonInfo *info = Gunk_GetLandMonsInfo();
+    u8 slot, tries, nature, i;
+    u16 iv[2];
+    u32 pid;
+
+    if (info == NULL)
+        return FALSE;
+    for (tries = 0; tries < 100; tries++)
+    {
+        slot = ChooseWildMonIndex_Land();
+        if (info->wildPokemon[slot].species == species)
+            break;
+    }
+    if (tries == 100)
+    {
+        for (slot = 0; slot < LAND_WILD_COUNT; slot++)
+        {
+            if (info->wildPokemon[slot].species == species)
+                break;
+        }
+        if (slot == LAND_WILD_COUNT)
+            return FALSE;
+    }
+    ChooseWildMonLevel(&info->wildPokemon[slot]);
+    if (species != SPECIES_UNOWN)
+    {
+        nature = Random() % NUM_NATURES;
+        pid = Gunk_PersonalityWithNature(nature);
+    }
+    else
+    {
+        u8 chamber = gSaveBlock1Ptr->location.mapNum - MAP_NUM(MAP_SEVEN_ISLAND_TANOBY_RUINS_MONEAN_CHAMBER);
+        pid = GenerateUnownPersonalityByLetter(sUnownLetterSlots[chamber][slot]);
+    }
+    iv[0] = Random();
+    iv[1] = Random();
+    *personality = pid;
+    *ivTotal = 0;
+    for (i = 0; i < 2; i++)
+        *ivTotal += (iv[i] & MAX_IV_MASK) + ((iv[i] >> 5) & MAX_IV_MASK) + ((iv[i] >> 10) & MAX_IV_MASK);
+    return TRUE;
+}
+
 bool8 UpdateRepelCounter(void)
 {
     u16 steps;

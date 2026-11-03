@@ -75,6 +75,16 @@ search there, locked or unlocked: Unown come only from the vanilla encounter, wh
 flag as in vanilla. With the chambers unlocked, 2 wild Unown from each of the 7 chambers (A A, H D, N N, R P, Y G,
 X V, Z Z) plus their box copies: 28 legal, 0 illegal; DexNav and chain searches started none.
 
+## Quick Ball and the DexNav search rules (2026-11-03, build `4e1aa569`)
+
+Merged from Gunk's FireRed and run on LeafGreen: `emu/suite/quickball.py` 10/10, `emu/suite/dexnav_rules.py` 5/5
+(the patch shakes twice a second; a search ends after about 602 frames with "got away" and the chain lost; a Pidgey
+keeps a Pidgey chain, a Rattata breaks it; fleeing a DexNav battle keeps it), save suite 35/35, boxes 16/16,
+features 29/29. Legality again on this build: 24 catches (12 wild, 6 DexNav, 5 chain, 1 shiny) and their box copies,
+48 legal of 48; Quick Ball's catch (a Rattata in a Great Ball) legal. The last ball lives in VAR_0x402B, a var no
+LeafGreen script uses, so the save layout is unchanged: a Gunk's LeafGreen save from before this loads as it was
+(the widget starts on the Poké Ball until a ball is thrown).
+
 ## Not done yet
 
 - Talking to the follower does nothing (vanilla would read a garbage script; it is skipped).

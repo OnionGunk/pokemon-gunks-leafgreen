@@ -1,6 +1,6 @@
 """Quick Run and Quick Ball checks: py -3 emu/suite/quickball.py <rom.gba> <rom.elf> [pk3_out_dir]
 
-On Route 1 (wild battles) with 10 Poke Balls and 5 Great Balls, and in Pewter Gym (a trainer battle):
+On Route 1 (wild battles) with 10 Poke Balls and 20 Great Balls (enough that the catch can't use them all), and in Pewter Gym (a trainer battle):
   widget        a wild battle's action menu shows the widget, on the pocket's first ball
   cycle         L held + Right shows the Great Ball; releasing L throws nothing
   throw         L tapped throws the shown ball: one fewer in the bag, the last ball remembered (VAR_GUNK_LAST_BALL)
@@ -117,7 +117,7 @@ def main():
     t0 = time.time()
     import emu
     try:
-        q.new_game(mons=[(SPECIES["PIKACHU"], 5)], items=[(ITEM_POKE_BALL, 10), (ITEM_GREAT_BALL, 5)],
+        q.new_game(mons=[(SPECIES["PIKACHU"], 5)], items=[(ITEM_POKE_BALL, 10), (ITEM_GREAT_BALL, 20)],
                    flags=[FLAG_SYS_POKEMON_GET], name="quickball")
         q.warp(*MAP_ROUTE1, 15, 6, name="quickball_route1")
         q.find_wild()
@@ -133,7 +133,7 @@ def main():
         before = q.balls(ITEM_GREAT_BALL)
         still = q.controller() in q.choose_action
         top = icon_top_color(q.path("quickball_cycled.png"))
-        q.record("quick ball cycle", ball == ITEM_GREAT_BALL and still and before == 5
+        q.record("quick ball cycle", ball == ITEM_GREAT_BALL and still and before == 20
                  and q.balls(ITEM_POKE_BALL) == pokeballs and top == "blue",
                  f"ball {ball}, icon top {top}, still in the action menu {still}, Great Balls {before}, Poke Balls "
                  f"{pokeballs} -> {q.balls(ITEM_POKE_BALL)}")
@@ -144,7 +144,7 @@ def main():
         help_open = g.u8(g.a("sVideoState") + 0x15)
         g.cmd("wait 30")
         thrown = q.balls(ITEM_GREAT_BALL)
-        q.record("quick ball throw", thrown == 4 and q.var(VAR_GUNK_LAST_BALL) == ITEM_GREAT_BALL,
+        q.record("quick ball throw", thrown == before - 1 and q.var(VAR_GUNK_LAST_BALL) == ITEM_GREAT_BALL,
                  f"Great Balls {before} -> {thrown}, last ball {q.var(VAR_GUNK_LAST_BALL)}")
         q.record("help stays closed", help_open == 0, f"help state {help_open}")
         caught = False

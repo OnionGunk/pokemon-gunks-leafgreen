@@ -149,7 +149,9 @@ class Features:
     # --- checks ---
     def check_header(self):
         title = bytes.fromhex(self.g.cmd("read 0x080000A0 16")[0].replace(" ", ""))
-        self.record("header", title[:12] == b"GUNK FR\0\0\0\0\0" and title[12:16] == b"BPRE", repr(title))
+        # the same file checks both games: each keeps its own game code, so emulators keep its save type
+        want = {b"BPRE": b"GUNK FR\0\0\0\0\0", b"BPGE": b"GUNK LG\0\0\0\0\0"}.get(title[12:16])
+        self.record("header", title[:12] == want, repr(title))
 
     def check_text_speed_default(self):
         speed = self.g.u8(self.sb2() + SB2_OPTIONS) & 7

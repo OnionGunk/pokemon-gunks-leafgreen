@@ -87,7 +87,7 @@
 #define VAR_WONDER_NEWS_STEP_COUNTER       0x4028
 #define VAR_GUNK_LAST_REPEL                0x4029 // Gunk's: the last Repel used, for the "use another?" prompt (unused in vanilla)
 #define VAR_GUNK_REGISTERED_ITEM_2         0x402A // Gunk's: the second registered item, used with R (unused in vanilla)
-#define VAR_0x402B                         0x402B
+#define VAR_GUNK_LAST_BALL                 0x402B // Gunk's: the last Poke Ball thrown, for Quick Ball (unused in vanilla)
 #define VAR_0x402C                         0x402C
 #define VAR_0x402D                         0x402D
 #define VAR_0x402E                         0x402E

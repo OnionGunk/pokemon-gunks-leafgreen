@@ -15,6 +15,8 @@ at each step; [`docs/GUNK_CHANGES.md`](docs/GUNK_CHANGES.md) lists each change a
 - **Faster play:** an INSTANT text speed, a faster EXP bar, auto-run, faster egg hatching.
 - **Items:** reusable TMs, two registered items (SELECT and R), bag sorting (START), a prompt to use another
   Repel when one runs out, and an Endless Repel toggle. The new key items come from Oak with the Pokédex, before the first gym.
+- **Quick Run and Quick Ball:** in battle, R runs and L throws your last-used ball (hold L and press Left/Right
+  to pick another). A small icon shows which ball and how many are left.
 - **Pokémon:** IV and EV view in the summary, Exp. All, vitamins up to 252 EVs, and trade evolutions without
   trading. HM moves work without teaching the move, and every Pokémon Center PC has a Move Tutor.
 
@@ -47,7 +49,8 @@ the decompilation.
 - [pret](https://github.com/pret/pokefirered) for the FireRed/LeafGreen decompilation this hack is built on,
   and [agbcc](https://github.com/pret/agbcc).
 - [pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion) contributors: the DexNav
-  (originally by Ghoulslash) this hack's version is based on, and the overworld Pokémon sprites.
+  (originally by Ghoulslash) this hack's version is based on, and the overworld Pokémon sprites. Quick Ball follows
+  its `B_LAST_USED_BALL` and `B_LAST_USED_BALL_CYCLE`.
 - MinimalEffort07's [pokefirered](https://github.com/MinimalEffort07/pokefirered) following-Pokémon code, which
   the follower is ported from.
 - The DexNav idea comes from later Pokémon games and fan hacks such as Pokémon Unbound.

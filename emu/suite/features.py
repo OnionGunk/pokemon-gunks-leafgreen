@@ -1,4 +1,4 @@
-"""Feature checks for Gunk's LeafGreen, in the emulator.
+"""Feature checks for Gunk's FireRed, in the emulator.
 
 Usage: py -3 emu/suite/features.py <rom.gba> <rom.elf> [check ...]
 
@@ -149,7 +149,7 @@ class Features:
     # --- checks ---
     def check_header(self):
         title = bytes.fromhex(self.g.cmd("read 0x080000A0 16")[0].replace(" ", ""))
-        self.record("header", title[:12] == b"GUNK LG\0\0\0\0\0" and title[12:16] == b"BPGE", repr(title))
+        self.record("header", title[:12] == b"GUNK FR\0\0\0\0\0" and title[12:16] == b"BPRE", repr(title))
 
     def check_text_speed_default(self):
         speed = self.g.u8(self.sb2() + SB2_OPTIONS) & 7
@@ -248,7 +248,7 @@ class Features:
         search = g.a("sSearch")
         raw = bytes.fromhex(g.cmd(f"read {search} 12")[0].replace(" ", ""))
         species, sx, sy = struct.unpack_from("<Hhh", raw, 0)
-        active = raw[10]
+        active = raw[11]  # struct DexNavSearch.active (after the u16 framesLeft and spriteId)
         g.cmd("press A 4", "wait 30", "press A 4", "wait 30")
         self.shot("dexnav_patch.png")
         self.walk_to(sx - 7, sy - 7)
@@ -609,7 +609,7 @@ class Features:
                     f"Endless Repel, Exp. All, DexNav {items}, Running Shoes {self.flag(FLAG_SYS_B_DASH)}")
 
     def check_mom_gift(self):
-        """A save past Pewter without the key items (made before Gunk's): Mom heals, then gives them."""
+        """A save past the Pokedex without the key items (made before Gunk's): Mom heals, then gives them."""
         g = self.g
         g.cmd("press Up 2", "wait 20", "press A 4", "wait 40")
         g.wait_field(press="A", max_steps=600, settle=4)
@@ -788,7 +788,8 @@ def main():
         f.clear_flag(0x092)
         f.warp(3, 2, 45, 22, name="pewter_warp")
         f.check_pewter_aide_gift()
-        f.new_game(mons=[(SPECIES["BULBASAUR"], 12)], flags=[FLAG_SYS_POKEMON_GET, FLAG_SYS_POKEDEX_GET, FLAG_SYS_B_DASH, 0x258], name="mom")
+        f.new_game(mons=[(SPECIES["BULBASAUR"], 12)], flags=[FLAG_SYS_POKEMON_GET, FLAG_SYS_POKEDEX_GET, FLAG_SYS_B_DASH, 0x258],
+                   name="mom")  # a save past Pewter has the Pokedex, which Mom's gift now checks
         f.warp(4, 0, 8, 5, name="mom_warp")
         f.check_mom_gift()
         f.new_game(mons=[(SPECIES_LAPRAS, 30)], items=[(ITEM_HM03, 1)],

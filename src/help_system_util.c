@@ -1,4 +1,5 @@
 #include "global.h"
+#include "gunk_quick_ball.h"
 #include "gflib.h"
 #include "decompress.h"
 #include "m4a.h"
@@ -53,6 +54,9 @@ u8 RunHelpSystemCallback(void)
             return 0;
         // Gunk's: in the field, R belongs to the second registered item when there is one (L still opens Help)
         if (JOY_NEW(R_BUTTON) && gMain.callback1 == CB1_Overworld && VarGet(VAR_GUNK_REGISTERED_ITEM_2) != ITEM_NONE)
+            return 0;
+        // Gunk's: in a battle's action menu, L and R are Quick Ball and Quick Run (src/gunk_quick_ball.c)
+        if (JOY_NEW(L_BUTTON | R_BUTTON) && Gunk_IsChoosingBattleAction())
             return 0;
         if (JOY_NEW(L_BUTTON | R_BUTTON))
         {

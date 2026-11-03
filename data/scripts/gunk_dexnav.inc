@@ -28,6 +28,16 @@ EventScript_GunkDexNavNoGrass::
 	releaseall
 	end
 
+@ The search's 10 seconds ran out before the player reached the patch (src/gunk_dexnav.c, Gunk_DexNavUpdate)
+EventScript_GunkDexNavGotAway::
+	lockall
+	msgbox Text_GunkDexNavGotAway
+	releaseall
+	end
+
+Text_GunkDexNavGotAway::
+	.string "The hidden POKéMON got away…$"
+
 Text_GunkDexNavWhich::
 	.string "DEXNAV: Search for which POKéMON?$"
 

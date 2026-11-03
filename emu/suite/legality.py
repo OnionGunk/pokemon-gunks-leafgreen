@@ -148,7 +148,7 @@ class Catcher(Features):
         raw = self.read(g.a("sSearch"), 12)
         species, sx, sy = struct.unpack_from("<Hhh", raw, 0)
         g.cmd("press A 4", "wait 30", "press A 4", "wait 30")
-        return species, sx - 7, sy - 7, raw[10]
+        return species, sx - 7, sy - 7, raw[11]  # struct DexNavSearch.active
 
     def dexnav(self, choice, level=0, chain=0, shiny=False):
         g = self.g

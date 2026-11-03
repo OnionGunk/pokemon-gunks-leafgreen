@@ -14,6 +14,7 @@
 #include "pokemon.h"
 #include "random.h"
 #include "safari_zone.h"
+#include "script.h"
 #include "string_util.h"
 #include "wild_encounter.h"
 #include "constants/battle.h"
@@ -39,7 +40,8 @@
 
 #define PATCH_MIN_DIST 2
 #define PATCH_MAX_DIST 5
-#define SEARCH_STEPS 60 // the patch disappears after this many steps
+#define SEARCH_FRAMES 600 // a search lasts 10 seconds of the player being free to walk
+#define PATCH_SHAKE_FRAMES 30 // the patch shakes twice a second
 
 struct DexNavSearch
 {
@@ -47,10 +49,11 @@ struct DexNavSearch
     s16 x, y;
     u8 mapGroup;
     u8 mapNum;
-    u8 stepsLeft;
+    u16 framesLeft;
     u8 spriteId;
     bool8 active;
     bool8 inBattle;
+    bool8 gotAwayPending; // timed out: say so once the player can be told
 };
 
 static EWRAM_DATA struct DexNavSearch sSearch = {0};
@@ -59,6 +62,27 @@ static EWRAM_DATA u8 sListCount = 0;
 static EWRAM_DATA u8 sListNames[LAND_WILD_COUNT][POKEMON_NAME_LENGTH + 1] = {0};
 
 static const u8 sText_Unseen[] = _("----------");
+
+// The patch: the grass rustle (FLDEFF_UNUSED_GRASS's frames), replayed from the start every PATCH_SHAKE_FRAMES:
+// 6 frames still, then the 8 rustle frames at 3 frames each. (The field effect's own animation shakes once, then
+// only wiggles its last two frames.)
+static const union AnimCmd sAnim_PatchShake[] =
+{
+    ANIMCMD_FRAME(0, 6),
+    ANIMCMD_FRAME(1, 3),
+    ANIMCMD_FRAME(2, 3),
+    ANIMCMD_FRAME(3, 3),
+    ANIMCMD_FRAME(4, 3),
+    ANIMCMD_FRAME(5, 3),
+    ANIMCMD_FRAME(6, 3),
+    ANIMCMD_FRAME(7, 3),
+    ANIMCMD_FRAME(8, 3),
+    ANIMCMD_JUMP(0),
+};
+
+static const union AnimCmd *const sAnims_PatchShake[] = {sAnim_PatchShake};
+
+extern const u8 EventScript_GunkDexNavGotAway[];
 
 static u8 *SearchData(void)
 {
@@ -140,6 +164,11 @@ static void SpawnPatchSprite(void)
     gFieldEffectArguments[2] = 0; // subpriority
     gFieldEffectArguments[3] = 2; // OAM priority, as the grass the player walks through
     sSearch.spriteId = FieldEffectStart(FLDEFF_UNUSED_GRASS);
+    if (sSearch.spriteId < MAX_SPRITES)
+    {
+        gSprites[sSearch.spriteId].anims = sAnims_PatchShake;
+        StartSpriteAnim(&gSprites[sSearch.spriteId], 0);
+    }
 }
 
 static void EndSearch(void)
@@ -244,17 +273,27 @@ void Gunk_DexNavStartSearch(void)
     sSearch.y = candidatesY[pick];
     sSearch.mapGroup = gSaveBlock1Ptr->location.mapGroup;
     sSearch.mapNum = gSaveBlock1Ptr->location.mapNum;
-    sSearch.stepsLeft = SEARCH_STEPS;
+    sSearch.framesLeft = SEARCH_FRAMES;
     sSearch.inBattle = FALSE;
+    sSearch.gotAwayPending = FALSE;
     sSearch.active = TRUE;
     SpawnPatchSprite();
     gSpecialVar_Result = TRUE;
 }
 
-// Every overworld frame: keep the patch on screen (the field's sprites are rebuilt after menus) and drop the
-// search when the player leaves the map.
+// Every overworld frame: keep the patch on screen (the field's sprites are rebuilt after menus), drop the search
+// when the player leaves the map, and run its 10 seconds: they count only while the player is free to walk (not
+// during a message or a script). When they run out the patch clears, the chain is lost, and once the player
+// stands still with nothing else going on, a message says the Pokemon got away.
 void Gunk_DexNavUpdate(void)
 {
+    if (sSearch.gotAwayPending && !ArePlayerFieldControlsLocked() && !ScriptContext_IsEnabled()
+     && gPlayerAvatar.tileTransitionState == T_NOT_MOVING)
+    {
+        sSearch.gotAwayPending = FALSE;
+        ScriptContext_SetupScript(EventScript_GunkDexNavGotAway);
+        return;
+    }
     if (!sSearch.active || sSearch.inBattle)
         return;
     if (!IsOnSearchMap())
@@ -265,6 +304,12 @@ void Gunk_DexNavUpdate(void)
     }
     if (!IsPatchSpriteAlive())
         SpawnPatchSprite();
+    if (!ArePlayerFieldControlsLocked() && --sSearch.framesLeft == 0)
+    {
+        EndSearch();
+        SetChain(SPECIES_NONE, 0);
+        sSearch.gotAwayPending = TRUE;
+    }
 }
 
 // From the field's step check, before the random encounter roll: on the patch, battle the searched Pokemon.
@@ -281,11 +326,7 @@ bool8 Gunk_DexNavTryStartBattle(void)
 
     PlayerGetDestCoords(&x, &y);
     if (x != sSearch.x || y != sSearch.y)
-    {
-        if (--sSearch.stepsLeft == 0)
-            EndSearch();
         return FALSE;
-    }
 
     rolls = GetRollCount(sSearch.species);
     for (i = 0; i < rolls; i++)
@@ -320,22 +361,27 @@ bool8 Gunk_DexNavTryStartBattle(void)
     return TRUE;
 }
 
-// From CB2_EndWildBattle: a DexNav battle raises the species' search level and builds or breaks the chain
+// From the end of every wild battle (CB2_EndWildBattle, CB2_EndScriptedWildBattle). The chain: a wild encounter
+// with another species than the chain's breaks it (to 0); one with the same species keeps it, and a DexNav battle
+// of it that is won or caught adds a link. A DexNav battle also raises the species' search level.
 void Gunk_DexNavOnBattleEnd(void)
 {
     u16 species = sSearch.species;
 
     if (!sSearch.active || !sSearch.inBattle)
+    {
+        u16 wild = GetMonData(&gEnemyParty[0], MON_DATA_SPECIES);
+        if (wild != SPECIES_NONE && wild != GetChainSpecies())
+            SetChain(SPECIES_NONE, 0);
         return;
+    }
     RaiseSearchLevel(species);
+    if (GetChainSpecies() != species)
+        SetChain(species, 0);
     if (gBattleOutcome == B_OUTCOME_WON || gBattleOutcome == B_OUTCOME_CAUGHT)
     {
         u8 chain = GetChain(species);
         SetChain(species, chain < MAX_CHAIN ? chain + 1 : chain);
-    }
-    else
-    {
-        SetChain(SPECIES_NONE, 0);
     }
     sSearch.active = FALSE;
     sSearch.inBattle = FALSE;

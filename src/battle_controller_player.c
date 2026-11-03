@@ -1,4 +1,5 @@
 #include "global.h"
+#include "gunk_quick_ball.h"
 #include "gflib.h"
 #include "data.h"
 #include "item.h"
@@ -222,9 +223,31 @@ static void HandleInputChooseAction(void)
 
     DoBounceEffect(gActiveBattler, BOUNCE_HEALTHBOX, 7, 1);
     DoBounceEffect(gActiveBattler, BOUNCE_MON, 7, 1);
+    // Gunk's Quick Ball (src/gunk_quick_ball.c): L throws the shown ball, L + Left/Right picks another
+    switch (Gunk_QuickBall_HandleInput())
+    {
+    case QUICK_BALL_CONSUMED:
+        return;
+    case QUICK_BALL_THROW:
+        PlaySE(SE_SELECT);
+        Gunk_QuickBall_Hide();
+        BtlController_EmitTwoReturnValues(1, B_ACTION_USE_ITEM, 0);
+        PlayerBufferExecCompleted();
+        return;
+    }
+    // Gunk's Quick Run: R does what RUN does
+    if (JOY_NEW(R_BUTTON))
+    {
+        PlaySE(SE_SELECT);
+        Gunk_QuickBall_Hide();
+        BtlController_EmitTwoReturnValues(1, B_ACTION_RUN, 0);
+        PlayerBufferExecCompleted();
+        return;
+    }
     if (JOY_NEW(A_BUTTON))
     {
         PlaySE(SE_SELECT);
+        Gunk_QuickBall_Hide();
 
         switch (gActionSelectionCursor[gActiveBattler])
         {
@@ -299,6 +322,7 @@ static void HandleInputChooseAction(void)
                     return;
             }
             PlaySE(SE_SELECT);
+            Gunk_QuickBall_Hide();
             BtlController_EmitTwoReturnValues(1, B_ACTION_CANCEL_PARTNER, 0);
             PlayerBufferExecCompleted();
         }
@@ -1337,6 +1361,7 @@ static void CompleteWhenChoseItem(void)
 {
     if (gMain.callback2 == BattleMainCB2 && !gPaletteFade.active)
     {
+        Gunk_QuickBall_NoteItemUsed(gSpecialVar_ItemId);
         BtlController_EmitOneReturnValue(1, gSpecialVar_ItemId);
         PlayerBufferExecCompleted();
     }
@@ -2399,6 +2424,21 @@ static void PlayerHandlePrintSelectionString(void)
         PlayerBufferExecCompleted();
 }
 
+// Gunk's: the player is in a battle's action menu, where L and R are Quick Ball's and Quick Run's (not Help's)
+bool8 Gunk_IsChoosingBattleAction(void)
+{
+    u8 i;
+
+    if (gMain.callback2 != BattleMainCB2)
+        return FALSE;
+    for (i = 0; i < gBattlersCount; i++)
+    {
+        if (gBattlerControllerFuncs[i] == HandleInputChooseAction)
+            return TRUE;
+    }
+    return FALSE;
+}
+
 static void HandleChooseActionAfterDma3(void)
 {
     if (!IsDma3ManagerBusyWithBgCopy())
@@ -2406,6 +2446,7 @@ static void HandleChooseActionAfterDma3(void)
         gBattle_BG0_X = 0;
         gBattle_BG0_Y = 160;
         gBattlerControllerFuncs[gActiveBattler] = HandleInputChooseAction;
+        Gunk_QuickBall_Show();
     }
 }
 
@@ -2456,7 +2497,19 @@ void InitMoveSelectionsVarsAndStrings(void)
 static void PlayerHandleChooseItem(void)
 {
     s32 i;
+    u16 ball;
 
+    // Gunk's Quick Ball: the ball is thrown without the bag (it made the bag's own checks and removal)
+    if (Gunk_QuickBall_TakePending(&ball))
+    {
+        gBattlerInMenuId = gActiveBattler;
+        for (i = 0; i < 3; ++i)
+            gBattlePartyCurrentOrder[i] = gBattleBufferA[gActiveBattler][1 + i];
+        gSpecialVar_ItemId = ball;
+        BtlController_EmitOneReturnValue(1, ball);
+        PlayerBufferExecCompleted();
+        return;
+    }
     BeginNormalPaletteFade(PALETTES_ALL, 0, 0, 0x10, RGB_BLACK);
     gBattlerControllerFuncs[gActiveBattler] = OpenBagAndChooseItem;
     gBattlerInMenuId = gActiveBattler;

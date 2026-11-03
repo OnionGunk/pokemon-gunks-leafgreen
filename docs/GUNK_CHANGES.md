@@ -23,10 +23,10 @@ suite), both run after every build, plus `emu/suite/boxes.py` for the PC boxes. 
 | 13 | Trade evolutions | Need a link trade | Kadabra at 36, Machoke, Graveler and Haunter at 37; the trade items (King's Rock, Metal Coat, Dragon Scale, Up-Grade, Deep Sea Tooth/Scale) can be used like stones. Gen 2/3 targets still wait for the National Pokédex, as vanilla's evolutions do | done | "trade evolution by level", "trade item as a stone" (no effect before the National Dex, Steelix after) |
 | 14 | HMs without teaching | Need the move | A Pokémon that could learn the move from an HM in the bag can use it: by script (`checkpartymove`), by facing water (Surf) and from the party menu, which lists it while there's room. Badges still apply | done | "HM without teaching" (Route 2's Cut tree), "follower and Surf" (a Lapras without Surf) |
 | 15 | Move Tutor | Move Maniac (Two Island, for mushrooms), Move Deleter (Fuchsia) | Every Pokémon Center PC has a free MOVE TUTOR row that remembers level-up moves and forgets moves | done | "PC move tutor" |
-| 16 | Faster egg hatching | An egg cycle every 256 steps | Every 128 steps (`src/daycare.c`) | done | code only; the test hook can't make an egg yet |
-| 17 | More PC boxes | 14 boxes; storage fills its 9 flash sectors | 16 boxes. Boxed Pokémon are packed from 80 to 70 bytes (`Gunk_PackBoxMon`), so they fit the same 9 sectors and both save slots stay. A vanilla LeafGreen save is converted when it loads. See `docs/PC_BOXES_PLAN.md` | testing | `emu/suite/boxes.py`: a vanilla save with 420 Pokémon (eggs, Bad Eggs, edge values) converted byte for byte, a save and reload, the summary screen unpacking boxes 1, 7, 14 and 16, all 16 boxes full across a save, the box list wrapping to box 16 |
+| 16 | Faster egg hatching | An egg cycle every 256 steps | Every 128 steps (`src/daycare.c`) | done | `emu/suite/eggs.py`: an egg with 1 cycle left hatches on step 255 (vanilla: 511), a whole Pidgey with its IVs, moves and personality |
+| 17 | More PC boxes | 14 boxes; storage fills its 9 flash sectors | 16 boxes. Boxed Pokémon are packed from 80 to 70 bytes (`Gunk_PackBoxMon`), so they fit the same 9 sectors and both save slots stay. A vanilla LeafGreen save is converted when it loads. See `docs/PC_BOXES_PLAN.md` | done | `emu/suite/boxes.py`: a vanilla save with 420 Pokémon (eggs, Bad Eggs, edge values) converted byte for byte, a save and reload, the summary screen unpacking boxes 1, 7, 14 and 16, all 16 boxes full across a save, the box list wrapping to box 16 |
 | 18 | DexNav | — | Key item (slot 54): lists the map's grass Pokémon; the chosen one hides in rustling grass nearby. Normal wild rolls; the search level and chain set how many are rolled (the best is kept). Search data in SaveBlock1's unused 400 bytes | done | "dexnav", "dexnav search level" |
-| 19 | Following Pokémon | — | The lead walks behind the player: all 386 species, shinies in shiny colors. Movement ported from MinimalEffort07/pokefirered; sprites from pokeemerald-expansion. RETURN on the lead's party menu puts it away (flag 0x4AA), WALK brings it back | done | "follower on/off switch", "follower", "follower and Surf", "follower across a map edge", "follower through a door", "follower and saving", "follower palette after a menu", "story opening" |
+| 19 | Following Pokémon | — | The lead walks behind the player: all 386 species, shinies in shiny colors. Movement ported from MinimalEffort07/pokefirered; sprites from pokeemerald-expansion. RETURN on the lead's party menu puts it away (flag 0x4AA), WALK brings it back. Its palette goes through the field tint like every NPC's, so the quest log ("Previously on your quest") restores it | done | `milestones.py` follower colors after 17 quest-log Continues, "follower on/off switch", "follower", "follower and Surf", "follower across a map edge", "follower through a door", "follower and saving", "follower palette after a menu", "story opening" |
 
 The three new key items come from Oak's aide in Pewter City with the Running Shoes, or from Mom on a save that is
 already past that ("Pewter aide gives the key items", "Mom gives the key items").
@@ -38,19 +38,40 @@ already past that ("Pewter aide gives the key items", "Mom gives the key items")
 playing when the sweep stops pressing A (the Hall of Fame saving, Bill on One Island, the Two Island Game Corner).
 The game keeps running in all of them. The first sweep found the cave hang fixed in "Fix a hang loading caves".
 
+## Story against vanilla
+
+`emu/suite/story.py` arrives in the same 397 maps on Gunk's and on vanilla from the same save (no test hook, a
+party written into RAM), presses A through any arrival scene, and compares the map, the player's position and every
+flag and var in the save block. Gunk's own flags and vars, and the temp ones the game clears on every map load, are
+left out. All 397 match. Four scenes (the Hall of Fame and credits, Four Island's rival, Two Island's Game Corner,
+Six Island's Pokémon Center) need more than 60 presses; they are run again with up to 1500 on both ROMs.
+
+## Milestones to the end
+
+`emu/suite/milestones.py` plays one game per ROM: a level 100 Mewtwo beats the 8 gym leaders, the Elite Four and
+the Champion (each reached by the save's continue-game warp, the leader talked to as a player would), then A
+carries on through Oak, the Hall of Fame, the credits and CONTINUE. Each milestone's flag (badge, member defeated,
+game clear) must be set and the save block's flags and vars must match vanilla's at the same point. Every warp is a
+save and a CONTINUE right after a battle, so the quest log plays 17 times; the follower's colors are checked after
+each. This run found the follower coming back black after the quest log (fixed in "Follower: keep its colors through
+the quest log").
+
 ## Not done yet
 
 - Talking to the follower does nothing (vanilla would read a garbage script; it is skipped).
-- An emulator check for egg hatching.
-- A whole playthrough: the checks cover the opening, the key-item gifts, each feature and every map's arrival,
-  not every story scene.
+- A full hand playthrough: the checks cover the opening, the key-item gifts, each feature, every map's arrival
+  against vanilla and every gym, Elite Four and Champion battle through the credits, not every scene in between
+  (Silph Co., Pokémon Tower, the Sevii Islands' story).
 
-## LeafGreen results (2026-11-02, build `de46a5aa`)
+## LeafGreen results (2026-11-02, build `f928171d`)
 
 - Vanilla control: `make compare_leafgreen` reproduces the retail ROM (sha1 `574fa542…`); the save suite in
   `leafgreen-tools` passes on retail and vanilla (save cycles, crash after a save, 10 live torn saves, 5 exact cuts,
   damaged-slot recovery).
-- Gunk's LeafGreen: `emu/suite/suite.py` 35/35, `emu/suite/features.py` 27/27.
-- Map sweep (`emu/suite/sweep.py`): 394/397. The other 3 are the same story scenes as on FireRed (Hall of Fame,
+- Gunk's LeafGreen: `emu/suite/suite.py` 35/35, `emu/suite/features.py` 27/27, `emu/suite/boxes.py` 16/16,
+  `emu/suite/eggs.py` 255 steps (vanilla 511), `emu/suite/milestones.py` 15/15 against vanilla.
+- Story sweep (`emu/suite/story.py`): 397/397 maps match vanilla (run on build `50b1b796`, before the follower
+  palette fix, which touches no story state).
+- Map sweep (`emu/suite/sweep.py`, build `de46a5aa`, before the 16 boxes): 394/397. The other 3 are the same story scenes as on FireRed (Hall of Fame,
   One Island Pokémon Center with Bill, Two Island Game Corner), still playing when the sweep stops; the game keeps
   running in all of them.

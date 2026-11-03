@@ -4,7 +4,8 @@ A quality-of-life hack of Pokémon LeafGreen, built on [pret's FireRed/LeafGreen
 It keeps the game's difficulty and story as they are and takes the grind and friction out, for long playthroughs.
 
 **Status: in development.** There is no release yet. Every feature below is in the build and passes its emulator
-check; [`docs/GUNK_CHANGES.md`](docs/GUNK_CHANGES.md) lists each change and its test results.
+check, and a test game beats every gym leader, the Elite Four and the Champion with the same story state as vanilla
+at each step; [`docs/GUNK_CHANGES.md`](docs/GUNK_CHANGES.md) lists each change and its test results.
 
 ## Features
 

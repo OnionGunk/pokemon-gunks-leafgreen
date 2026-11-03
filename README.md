@@ -3,19 +3,19 @@
 A quality-of-life hack of Pokémon LeafGreen, built on [pret's FireRed/LeafGreen decompilation](https://github.com/pret/pokefirered).
 It keeps the game's difficulty and story as they are and takes the grind and friction out, for long playthroughs.
 
-**Status: in development.** There is no release yet. [`docs/GUNK_CHANGES.md`](docs/GUNK_CHANGES.md) tracks
-each change and its test results.
+**Status: in development.** There is no release yet. Every feature below is in the build and passes its emulator
+check; [`docs/GUNK_CHANGES.md`](docs/GUNK_CHANGES.md) lists each change and its test results.
 
-## Features (planned)
+## Features
 
 - **DexNav.** See each route's Pokémon (caught, seen or unseen) and search for one in the grass.
 - **Pokémon follow you.**
-- **More PC boxes**, if the save layout allows it safely (see [`docs/PC_BOXES_PLAN.md`](docs/PC_BOXES_PLAN.md)).
-- **Faster play:** instant text, a faster EXP bar, auto-run, faster egg hatching.
-- **Items:** reusable TMs, two registered items, bag sorting, a prompt to use another Repel when one runs out,
-  and an Endless Repel toggle.
+- **More PC boxes** are planned: 17, if memory allows it safely (see [`docs/PC_BOXES_PLAN.md`](docs/PC_BOXES_PLAN.md)).
+- **Faster play:** an INSTANT text speed, a faster EXP bar, auto-run, faster egg hatching.
+- **Items:** reusable TMs, two registered items (SELECT and R), bag sorting (START), a prompt to use another
+  Repel when one runs out, and an Endless Repel toggle. The new key items come from Oak's aide in Pewter City.
 - **Pokémon:** IV and EV view in the summary, Exp. All, vitamins up to 252 EVs, and trade evolutions without
-  trading. HM moves work without teaching the move, and every Pokémon Center has a Move Tutor.
+  trading. HM moves work without teaching the move, and every Pokémon Center PC has a Move Tutor.
 
 Save safety comes first: every build has to pass an emulator test suite that covers save cycles, power cuts
 right after and during a save, and damaged-save recovery. The suite runs on the unmodified game too, as the control.
@@ -46,10 +46,12 @@ the decompilation.
 - [pret](https://github.com/pret/pokefirered) for the FireRed/LeafGreen decompilation this hack is built on,
   and [agbcc](https://github.com/pret/agbcc).
 - [pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion) contributors: the DexNav
-  (originally by Ghoulslash) and following-Pokémon implementations this hack's versions are based on.
+  (originally by Ghoulslash) this hack's version is based on, and the overworld Pokémon sprites.
+- MinimalEffort07's [pokefirered](https://github.com/MinimalEffort07/pokefirered) following-Pokémon code, which
+  the follower is ported from.
 - The DexNav idea comes from later Pokémon games and fan hacks such as Pokémon Unbound.
-- Gunk's [Platinum](https://github.com/OnionGunk/pokemon-gunks-platinum) and FireRed hacks, which share
-  features and code with this one.
+- Gunk's [Platinum](https://github.com/OnionGunk/pokemon-gunks-platinum) hack, and Gunk's FireRed, whose code
+  this hack is built on.
 
 Pokémon is © Nintendo, Creatures Inc. and GAME FREAK inc. This is a non-commercial fan project and contains
 no ROM data; you need your own legally dumped copy of the game.

@@ -110,6 +110,19 @@ FireRed's fix for the half-second stall on reaching the patch (e7a31fa48, findin
 - `suite.py` 35/35, `features.py` 29/29, `boxes.py` 16/16, `dexnav_rules.py` 5/5. The story sweep and milestones
   above ran on `4e1aa569`, before this change, which touches only the DexNav's rolls.
 
+## v1.2-dev: talking to the follower (2026-11-03, build `933aecc7`)
+
+FireRed's follower talk (736be3da9): A on the follower gives one of six lines, by its friendship or when it is worn
+out (under a quarter of its HP).
+- `emu/suite/follower_talk.py`: wary, happy, devoted and tired: 4/4 (the line, the nickname, the field back, the
+  follower still following).
+- Talk sweep (`emu/suite/story.py run-talk`, with FireRed's 7ae32c2ee): the 144 people whose scripts change story
+  state, talked to on Gunk's and on vanilla from the same setup. 122 finish on both and none ends with other vars,
+  flags, map or party than vanilla's; 0 fail. 19 aren't there at that point in the story on either. 4 are test
+  setup (2 unfinished in vanilla too, Celio and Lostelle's father not set up in vanilla).
+- `suite.py` 35/35, `features.py` 29/29, `boxes.py` 16/16, `dexnav_rules.py` 5/5, `quickball.py` 10/10,
+  `dexnav_peek.py` 12/12 with its catches legal in PKHeX.
+
 ## Not done yet
 
 - Talking to the follower does nothing (vanilla would read a garbage script; it is skipped).

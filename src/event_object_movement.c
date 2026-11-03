@@ -2111,6 +2111,10 @@ static u8 LoadGunkFollowerPalette(void)
     paletteNum = LoadSpritePalette(&palette);
     if (paletteNum == 0xFF)
         return PALSLOT_NPC_1;
+    // Tint it like every other object palette (PatchObjectPalette). During the quest log's "Previously on your
+    // quest" this also backs the palette up; the playback restores all palettes from that backup when it ends, so
+    // without it the follower came back black.
+    ApplyGlobalFieldPaletteTint(paletteNum);
     UpdateSpritePaletteWithWeather(paletteNum);
     return paletteNum;
 }

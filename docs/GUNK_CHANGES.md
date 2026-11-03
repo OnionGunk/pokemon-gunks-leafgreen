@@ -56,6 +56,17 @@ save and a CONTINUE right after a battle, so the quest log plays 17 times; the f
 each. This run found the follower coming back black after the quest log (fixed in "Follower: keep its colors through
 the quest log").
 
+## Legality (PKHeX)
+
+`emu/suite/legality.py` (shared with Gunk's FireRed) catches Pokémon in the emulator as a player does (a battle,
+a Master Ball, no nickname) on Route 1, Route 2 and Viridian Forest, dumps each as a .pk3 and also its round trip
+through the 16-box packing, and `PKHeX.Core` 26.10.18 checks them (Gen 3 legality: PID/IV method, nature and ability
+from the PID, species and level for LeafGreen's tables, met data, ball, OT, moves). LeafGreen, 2026-11-02: 25
+catches (12 wild, 6 plain DexNav, 6 DexNav chain at search level 100 with a chain of 40, so 21 rolls, and 1 shiny
+from a chain search whose RNG seed was searched, not edited) plus their 25 box copies: 50 legal, 0 illegal, no box
+copy changed. Methods 1, 2 and 4, all of which FRLG grass encounters produce. DexNav keeps one of its rolls
+unedited, each a vanilla wild generation, so a shiny is a full legal reroll.
+
 ## Not done yet
 
 - Talking to the follower does nothing (vanilla would read a garbage script; it is skipped).

@@ -1,280 +1,204 @@
-"""Milestones to the end of the game: the 8 gym leaders, the Elite Four, the Champion, the Hall of Fame, the credits.
+"""Story milestones, each started where a player would be: py -3 emu/suite/milestones.py <gunk.gba> <gunk.elf>
+<vanilla.gba> <vanilla.elf> [names...]
 
-Usage:
-  py -3 emu/suite/milestones.py run <rom.gba> <rom.elf>          one ROM, writes milestones.json beside its results
-  py -3 emu/suite/milestones.py compare <gunk.json> <vanilla.json>
+Each milestone starts from the story sweep's setup (story.py: the intro, then a Lv. 100 Mewtwo with the player's
+trainer ID): the flags and items the event needs are set, the continue warp points next to the event, CONTINUE,
+then the player faces the person (or the scene starts on arrival) and A is pressed until the player can walk again.
+This runs on Gunk's and on vanilla FireRed from the same setup. A milestone passes when the milestone's own flag is
+set on Gunk's, Gunk's ends on the same map with the same vars and flags as vanilla (but Gunk's own), and on Gunk's a
+save, power cycle and CONTINUE comes back on that map.
 
-One game per ROM, without the test hook (vanilla has none): the intro to the bedroom, then a level 100 Mewtwo with
-Psychic and the player's own OT (so it obeys) written into the party, healed the same way before every milestone.
-Each gym leader: the save's continue-game warp puts the player below the leader, the player faces up and talks,
-and A is pressed through the battle and the badge scene. Each Elite Four room and the Champion's: the player warps
-onto the room's entrance (its entry scene plays as through the door), then, for the Elite Four, below the member.
-After the Champion, A carries on through Oak, the Hall of Fame and the credits to the main menu, and CONTINUE must
-reach the field. A milestone passes when its flag is set (badge, member defeated, game clear) and the save
-block's flags and vars match vanilla's at the same point outside Gunk's own.
-Results: emu/suite/out/<rom name>/milestones/.
+Milestones: the eight gym leaders, the S.S. Anne captain (HM01 Cut), Snorlax on Route 12 (with the Poke Flute), and
+the Champion (the battle, Oak, the Hall of Fame and its save, the credits, then CONTINUE).
+Results: emu/suite/out/<gunk rom>/milestones.txt.
 """
-import json
 import os
 import struct
 import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
-from eggs import party_mon  # noqa: E402
-from features import ERASED, FLAG_SYS_POKEMON_GET, SB1_FLAGS, SB1_VARS, VAR_REPEL_STEP_COUNT  # noqa: E402
-from lib import Game  # noqa: E402
-from story import diff  # noqa: E402
-from sweep import maps  # noqa: E402
+import story  # noqa: E402
 
-SPECIES_MEWTWO, MOVE_PSYCHIC = 150, 94
-EXP_L100_SLOW = 1250000
-FLAG_HIDE_VIRIDIAN_GIOVANNI = 0x055
-FLAG_SYS_GAME_CLEAR = 0x82C
-# (name, map, leader's script, flag set by winning)
-GYMS = [("Brock", "PewterCity_Gym", "Brock", 0x820), ("Misty", "CeruleanCity_Gym", "Misty", 0x821),
-        ("Lt. Surge", "VermilionCity_Gym", "LtSurge", 0x822), ("Erika", "CeladonCity_Gym", "Erika", 0x823),
-        ("Koga", "FuchsiaCity_Gym", "Koga", 0x824), ("Sabrina", "SaffronCity_Gym", "Sabrina", 0x825),
-        ("Blaine", "CinnabarIsland_Gym", "Blaine", 0x826), ("Giovanni", "ViridianCity_Gym", "Giovanni", 0x827)]
-ELITE_FOUR = [("Lorelei", "PokemonLeague_LoreleisRoom", "Lorelei", 0x4B8),
-              ("Bruno", "PokemonLeague_BrunosRoom", "Bruno", 0x4B9),
-              ("Agatha", "PokemonLeague_AgathasRoom", "Agatha", 0x4BA),
-              ("Lance", "PokemonLeague_LancesRoom", "Lance", 0x4BB)]
-CHAMPION = ("Champion", "PokemonLeague_ChampionsRoom", None, 0x4BC)
+SB1_KEY_ITEMS, SB2_ENCRYPTION_KEY = 0x3B8, 0xF20
+FLAG_BADGE01_GET, FLAG_SYS_GAME_CLEAR = 0x820, 0x82C
+FLAG_GOT_HM01, FLAG_HIDE_ROUTE_12_SNORLAX = 0x237, 0x054
+FLAG_GOT_POKE_FLUTE = 0x23D  # the Snorlax script checks this flag, not the bag
+ITEM_POKE_FLUTE = 350
 
-
-def map_index():
-    return {name: (gi, mi) for gi, mi, name in maps()}
-
-
-def leader_tile(mapname, script):
-    m = json.load(open(os.path.join(REPO, "data/maps", mapname, "map.json")))
-    for o in m["object_events"]:
-        if o.get("script", "").endswith("_EventScript_" + script):
-            return o["x"], o["y"]
-    raise KeyError(script)
+# name, map folder, the person's tile (None: the scene starts on arrival), flags to set first, key items, the flag
+# that must be set afterwards, A presses allowed
+MILESTONES = [
+    ("brock", "PewterCity_Gym", (6, 5), [], [], FLAG_BADGE01_GET, 600),
+    ("misty", "CeruleanCity_Gym", (8, 6), [FLAG_BADGE01_GET], [], FLAG_BADGE01_GET + 1, 600),
+    ("surge", "VermilionCity_Gym", (5, 2), [FLAG_BADGE01_GET + i for i in range(2)], [], FLAG_BADGE01_GET + 2, 600),
+    ("erika", "CeladonCity_Gym", (6, 4), [FLAG_BADGE01_GET + i for i in range(3)], [], FLAG_BADGE01_GET + 3, 600),
+    ("koga", "FuchsiaCity_Gym", (7, 13), [FLAG_BADGE01_GET + i for i in range(4)], [], FLAG_BADGE01_GET + 4, 600),
+    ("sabrina", "SaffronCity_Gym", (14, 11), [FLAG_BADGE01_GET + i for i in range(5)], [], FLAG_BADGE01_GET + 5, 600),
+    ("blaine", "CinnabarIsland_Gym", (5, 4), [FLAG_BADGE01_GET + i for i in range(6)], [], FLAG_BADGE01_GET + 6, 600),
+    ("giovanni", "ViridianCity_Gym", (2, 2), [FLAG_BADGE01_GET + i for i in range(7)], [], FLAG_BADGE01_GET + 7, 600),
+    ("captain", "SSAnne_CaptainsOffice", (5, 4), [], [], FLAG_GOT_HM01, 300),
+    ("snorlax", "Route12", (14, 70), [FLAG_GOT_POKE_FLUTE], [ITEM_POKE_FLUTE], FLAG_HIDE_ROUTE_12_SNORLAX, 400),
+    ("champion", "PokemonLeague_ChampionsRoom", None, [FLAG_BADGE01_GET + i for i in range(8)], [],
+     FLAG_SYS_GAME_CLEAR, 4000),
+]
 
 
-class Milestones:
-    def __init__(self, rom, elf):
-        self.g = Game(rom, elf)
-        self.name = os.path.splitext(os.path.basename(rom))[0]
-        self.out = os.path.join(HERE, "out", self.name, "milestones")
-        os.makedirs(self.out, exist_ok=True)
-        self.maps = map_index()
-        self.results = {}
-        self.follower_colors = []  # (map, palette slot, black colors of 15) after each Continue
+class Milestones(story.Runner):
+    def set_flag(self, flag):
+        addr = self.sb1() + story.SB1_FLAGS + flag // 8
+        self.g.cmd(f"write8 {addr} {self.g.u8(addr) | 1 << (flag % 8)}")
 
-    def shot(self, name):
-        self.g.cmd(f"shot {os.path.join(self.out, name).replace(chr(92), '/')}")
+    def flag(self, outcome, flag):
+        return bytes.fromhex(outcome["flags"])[flag // 8] >> (flag % 8) & 1
 
-    def sb1(self):
-        return self.g.u32(self.g.a("gSaveBlock1Ptr"))
+    def give_key_item(self, slot, item):
+        key = struct.unpack("<I", self.read(self.sb2() + SB2_ENCRYPTION_KEY, 4))[0] & 0xFFFF
+        self.write(self.sb1() + SB1_KEY_ITEMS + slot * 4, struct.pack("<HH", item, 1 ^ key))
 
-    def sb2(self):
-        return self.g.u32(self.g.a("gSaveBlock2Ptr"))
-
-    def flag(self, flag):
-        return (self.g.u8(self.sb1() + SB1_FLAGS + flag // 8) >> (flag % 8)) & 1
-
-    def set_flag(self, flag, on):
-        addr = self.sb1() + SB1_FLAGS + flag // 8
-        b = self.g.u8(addr)
-        self.g.cmd(f"write8 {addr} {(b | 1 << flag % 8) if on else (b & ~(1 << flag % 8))}")
-
-    def heal(self):
-        """The party: one Mewtwo, rewritten (full HP and PP) with the player's trainer ID and name."""
+    def at_title(self):
         g = self.g
-        sb2 = self.sb2()
-        ot = bytes.fromhex(g.cmd(f"read {sb2} 7")[0].replace(" ", ""))
-        otid = g.u32(sb2 + 0xA)
-        mon = party_mon(SPECIES_MEWTWO, 100, [MOVE_PSYCHIC, 0, 0, 0], exp=EXP_L100_SLOW, otid=otid, ot=ot,
-                        stats=(999, 999, 999, 999, 999, 999))
-        path = os.path.join(self.out, "poke.bin")
-        open(path, "wb").write(mon)
-        g.cmd(f"poke EWRAM {g.a('gPlayerParty') - 0x02000000} {path.replace(chr(92), '/')}",
-              f"write8 {g.a('gPlayerPartyCount')} 1")
+        cb2 = g.u32(g.a("gMain") + 4) & ~1
+        return cb2 in (g.a("CB2_MainMenu"), g.a("CB2_InitCopyrightScreenAfterBootup")) or g.a("CB2_InitTitleScreen") == cb2
 
-    def warp(self, mapname, x=None, y=None, warp_id=0, before=None):
-        """Save with the continue-game warp at (x, y) on <mapname> (or onto its warp event <warp_id>), power-cycle,
-        Continue. A is pressed until the field is ready, through any scene or battle on arrival."""
+    def milestone(self, spec):
+        name, folder, person, flags, items, done_flag, presses = spec
         g = self.g
-        gi, mi = self.maps[mapname]
+        m = story.neighbour.cache[folder]
+        if person:
+            wx, wy, direction = story.neighbour(folder, *person)
+            warp_id = 255
+        else:
+            wx, wy, direction, warp_id = 0xFFFF, 0xFFFF, None, 0
+        g.cmd(f"load {self.state}")
+        for flag in flags:
+            self.set_flag(flag)
+        for slot, item in enumerate(items):
+            self.give_key_item(slot, item)
+        sb1 = self.sb1()
+        g.cmd(f"write8 {sb1 + story.SB1_CONTINUE_WARP} {m['group']}", f"write8 {sb1 + story.SB1_CONTINUE_WARP + 1} {m['num']}",
+              f"write8 {sb1 + story.SB1_CONTINUE_WARP + 2} {warp_id}",
+              f"write16 {sb1 + story.SB1_CONTINUE_WARP + 4} {wx}", f"write16 {sb1 + story.SB1_CONTINUE_WARP + 6} {wy}",
+              f"write8 {self.sb2() + 9} {g.u8(self.sb2() + 9) | 1}")
+        g.cmd("press A 4", "wait 30")  # CONTINUE
+        if person:
+            if not g.wait_field(press="A", max_steps=120):
+                return {"result": "setup: no field after CONTINUE"}
+            g.cmd(f"press {direction} 2", "wait 10", "press A 4", "wait 30")
+        else:
+            for _ in range(80):  # the scene starts as the map comes up
+                if (g.u32(g.a("gMain") + 4) & ~1) == g.a("CB2_Overworld"):
+                    break
+                g.cmd("press A 4", "wait 20")
+        settled, title = 0, False
+        for i in range(presses):
+            if g.field_ready():
+                settled += 1
+                if settled >= 3:
+                    break
+                g.cmd("wait 20")
+                continue
+            settled = 0
+            if self.at_title():
+                # the credits end on the title screen: CONTINUE from the save the Hall of Fame made
+                title = True
+                print(f"title screen? cb2 {g.u32(g.a('gMain') + 4):#x} after {i} presses", flush=True)
+                g.cmd("wait 60", f"shot {os.path.splitext(self.out)[0]}_{name}_title.png")
+                try:
+                    g.boot_continue()
+                except RuntimeError as e:
+                    return {"result": f"after the credits: {e}", "outcome": self.outcome()}
+                continue
+            g.cmd("press A 4", "wait 20")
+            if os.environ.get("MILESTONE_SHOTS") and i % 100 == 0:
+                g.cmd(f"shot {os.path.splitext(self.out)[0]}_{name}_{i}.png")
+            if i % 100 == 99 and int(g.cmd(f"alive {g.a('gMain') + 0x24} 30")[0].split()[1]) == 0:
+                g.cmd(f"shot {os.path.splitext(self.out)[0]}_{name}_hang.png")
+                return {"result": "hang", "outcome": self.outcome()}
+        g.cmd(f"shot {os.path.splitext(self.out)[0]}_{name}.png")
+        if settled < 3:
+            return {"result": "unfinished", "outcome": self.outcome()}
+        out = self.outcome()
+        return {"result": "finished", "outcome": out, "flag": self.flag(out, done_flag), "title": title}
 
-        def edit():
-            sb1, sb2 = self.sb1(), self.sb2()
-            if x is None:
-                pos = [f"write8 {sb1 + 0xE} {warp_id}", f"write16 {sb1 + 0x10} 65535", f"write16 {sb1 + 0x12} 65535"]
-            else:
-                pos = [f"write8 {sb1 + 0xE} 255", f"write16 {sb1 + 0x10} {x}", f"write16 {sb1 + 0x12} {y}"]
-            g.cmd(f"write8 {sb1 + 0xC} {gi}", f"write8 {sb1 + 0xD} {mi}", *pos, f"write8 {sb2 + 9} {g.u8(sb2 + 9) | 1}",
-                  f"write16 {sb1 + SB1_VARS + (VAR_REPEL_STEP_COUNT - 0x4000) * 2} 65535")
-            self.heal()
-            if before:
-                before()
-        g.save(before_save=edit)
-        g.reboot()
-        g.boot_continue()
-        self.check_follower_colors(mapname)
-
-    def check_follower_colors(self, where):
-        """Gunk's follower after a Continue, which plays the quest log ("Previously on your quest") of the last
-        battle: its palette must be restored, not left black. Vanilla has no follower: nothing to check."""
+    def follower_colors(self):
+        """Colors 1-15 of the follower's palette that aren't black, or None with no follower out."""
         g = self.g
         objs = g.a("gObjectEvents")
         for i in range(16):
-            raw = bytes.fromhex(g.cmd(f"read {objs + i * 0x24} 12")[0].replace(" ", ""))
-            if raw[0] & 1 and raw[8] == 254:
-                sprite = g.a("gSprites") + raw[4] * 0x44
-                slot = struct.unpack("<H", bytes.fromhex(g.cmd(f"read {sprite + 4} 2")[0].replace(" ", "")))[0] >> 12
-                colors = struct.unpack("<16H", bytes.fromhex(
-                    g.cmd(f"read {g.a('gPlttBufferFaded') + 0x200 + slot * 32} 32")[0].replace(" ", "")))
-                black = sum(1 for c in colors[1:] if c == 0)
-                self.follower_colors.append((where, slot, black))
-                if black == 15:
-                    self.shot(f"black_follower_{len(self.follower_colors):02}.png")
-                return
+            raw = self.read(objs + i * 0x24, 12)
+            if raw[0] & 1 and raw[8] == 254:  # active, LOCALID_FOLLOWER
+                slot = struct.unpack("<H", self.read(g.a("gSprites") + raw[4] * 0x44 + 4, 2))[0] >> 12
+                pal = struct.unpack("<16H", self.read(g.a("gPlttBufferFaded") + 0x200 + slot * 32, 32))
+                return sum(1 for c in pal[1:] if c)
+        return None
 
-    def talk_up(self):
-        """Face up, talk, and press A until the field is back (the battle, the badge, the TM)."""
+    def save_cycle(self):
+        """Save, power-cycle, CONTINUE (after a battle the quest log's "previously on your quest" plays first).
+        Returns the map before and after, and the follower's non-black colors after."""
+        before = self.outcome()["map"]
         g = self.g
-        g.cmd("press Up 3", "wait 20", "press A 4", "wait 60")
-        return g.wait_field(press="A", max_steps=1500, settle=5)
-
-    def record(self, label, flag, extra=""):
-        sb1 = self.sb1()
-        x, y = struct.unpack("<hh", bytes.fromhex(self.g.cmd(f"read {sb1} 4")[0].replace(" ", "")))
-        rec = {"flag": self.flag(flag), "map": list(bytes.fromhex(self.g.cmd(f"read {sb1 + 4} 2")[0].replace(" ", ""))),
-               "pos": [x, y], "flags": self.g.cmd(f"read {sb1 + SB1_FLAGS} 288")[0].replace(" ", ""),
-               "vars": self.g.cmd(f"read {sb1 + SB1_VARS} 512")[0].replace(" ", "")}
-        self.results[label] = rec
-        self.shot(f"{len(self.results):02}_{label.replace(' ', '_').replace('.', '')}.png")
-        print(f"{self.name} {label}: flag {flag:#x} = {rec['flag']}, map {tuple(rec['map'])}, pos ({x},{y}){extra}",
-              flush=True)
-
-    def run(self):
-        g = self.g
-        g.start()
-        g.set_flash(ERASED)
+        g.save()
         g.reboot()
-        for _ in range(80):
-            if (g.u32(g.a("gMain") + 4) & ~1) == g.a("CB2_MainMenu"):
-                break
-            g.cmd("press Start 4", "wait 30")
-        if not g.wait_field(press="A", max_steps=1500, settle=5):
-            raise RuntimeError("intro never reached the field")
-        self.set_flag(FLAG_SYS_POKEMON_GET, True)
-
-        for label, mapname, script, flag in GYMS:
-            x, y = leader_tile(mapname, script)
-            hide = (lambda: self.set_flag(FLAG_HIDE_VIRIDIAN_GIOVANNI, False)) if script == "Giovanni" else None
-            self.warp(mapname, x, y + 1, before=hide)
-            back = self.talk_up()
-            self.record(label, flag, f", back in the field {back}")
-
-        for label, mapname, script, flag in ELITE_FOUR:
-            self.warp(mapname, warp_id=0)  # the entrance: the room's entry scene
-            x, y = leader_tile(mapname, script)
-            self.warp(mapname, x, y + 1)
-            back = self.talk_up()
-            self.record(label, flag, f", back in the field {back}")
-
-        # the Champion: the entry scene starts the battle; A through Oak, the Hall of Fame and the credits
-        label, mapname, _, flag = CHAMPION
-        self.warp_and_finish(mapname, flag)
-        self.check_follower_colors("after the credits")
-        if self.follower_colors:
-            black = [c for c in self.follower_colors if c[2] == 15]
-            self.results["follower colors"] = {"checked": len(self.follower_colors), "black": black}
-            print(f"{self.name} follower colors after {len(self.follower_colors)} Continues: "
-                  f"{len(black)} black {black}", flush=True)
-        return self.results
-
-    def warp_and_finish(self, mapname, flag):
-        g = self.g
-        gi, mi = self.maps[mapname]
-
-        def edit():
-            sb1, sb2 = self.sb1(), self.sb2()
-            g.cmd(f"write8 {sb1 + 0xC} {gi}", f"write8 {sb1 + 0xD} {mi}", f"write8 {sb1 + 0xE} 0",
-                  f"write16 {sb1 + 0x10} 65535", f"write16 {sb1 + 0x12} 65535", f"write8 {sb2 + 9} {g.u8(sb2 + 9) | 1}")
-            self.heal()
-        g.save(before_save=edit)
-        g.reboot()
-        for _ in range(60):
-            if (g.u32(g.a("gMain") + 4) & ~1) == g.a("CB2_MainMenu"):
-                break
-            g.cmd("press Start 4", "wait 30")
+        g.boot_continue()
         g.cmd("wait 60")
-        champion_seen = False
-        t0 = time.time()
-        menu = None
-        for i in range(6000):
-            cb2 = g.u32(g.a("gMain") + 4) & ~1
-            if i > 20 and cb2 == g.a("CB2_MainMenu"):
-                menu = i
-                break
-            if not champion_seen and self.flag(flag):
-                champion_seen = True
-                self.record("Champion", flag)
-            g.cmd("press A 4", "wait 16")
-        self.shot("credits_end.png")
-        clear = None
-        if menu is not None:
-            g.cmd("wait 60")
-            back = g.wait_field(press="A", max_steps=400, settle=5)
-            self.record("Hall of Fame and credits", FLAG_SYS_GAME_CLEAR,
-                        f", main menu after {time.time() - t0:.0f}s, CONTINUE reached the field {back}")
-            clear = back
-        else:
-            self.results["Hall of Fame and credits"] = {"flag": 0, "map": [], "pos": [], "flags": "", "vars": "",
-                                                       "error": "never reached the main menu"}
-            print(f"{self.name}: never reached the main menu after the Champion", flush=True)
-        return clear
-
-
-def compare(gpath, vpath):
-    gk, vn = json.load(open(gpath)), json.load(open(vpath))
-    lines = []
-    for label in [m[0] for m in GYMS + ELITE_FOUR] + ["Champion", "Hall of Fame and credits"]:
-        a, b = gk.get(label), vn.get(label)
-        if not a or not a.get("flags"):
-            lines.append(f"FAIL {label}: not reached in Gunk's")
-            continue
-        detail = f"flag {a['flag']}/{b['flag'] if b else '-'}, map {a['map']}/{b['map'] if b else '-'}"
-        ok = a["flag"] == 1
-        if b and b.get("flags"):
-            flags, vars_ = diff(a, b)
-            ok = ok and not flags and not vars_ and a["map"] == b["map"]
-            if flags:
-                detail += ", flags " + " ".join(f"{f:#x}" for f in flags)
-            if vars_:
-                detail += ", vars " + " ".join(f"{v:#x}={x}/{y}" for v, x, y in vars_)
-        lines.append(f"{'PASS' if ok else 'FAIL'} {label}: {detail} (Gunk's/vanilla)")
-    colors = gk.get("follower colors")
-    if colors:
-        lines.append(f"{'FAIL' if colors['black'] else 'PASS'} follower colors after the quest log: "
-                     f"{len(colors['black'])} black of {colors['checked']} Continues {colors['black'] or ''}")
-    failed = [l for l in lines if l.startswith("FAIL")]
-    summary = f"{len(lines) - len(failed)}/{len(lines)} milestones"
-    print("\n".join(lines + [summary]))
-    open(os.path.join(os.path.dirname(gpath), "results.txt"), "w").write("\n".join(lines + [summary]) + "\n")
-    return not failed
+        return before, self.outcome()["map"], self.follower_colors()
 
 
 def main():
-    if sys.argv[1] == "run":
-        m = Milestones(os.path.abspath(sys.argv[2]), os.path.abspath(sys.argv[3]))
-        try:
-            m.run()
-        finally:
-            import emu
-            emu.stop()
-            json.dump(m.results, open(os.path.join(m.out, "milestones.json"), "w"))
-    else:
-        sys.exit(0 if compare(sys.argv[2], sys.argv[3]) else 1)
+    rom, elf, vrom, velf = (os.path.abspath(a) for a in sys.argv[1:5])
+    names = sys.argv[5:]
+    todo = [s for s in MILESTONES if not names or s[0] in names]
+    out_dir = os.path.join(HERE, "out", os.path.splitext(os.path.basename(rom))[0], "milestones")
+    os.makedirs(out_dir, exist_ok=True)
+    import emu
+    t0 = time.time()
+    results = {}
+    try:
+        v = Milestones(vrom, velf, os.path.join(out_dir, "vanilla.jsonl"))
+        v.setup()
+        for spec in todo:
+            results[spec[0]] = {"vanilla": v.milestone(spec)}
+            print(f"vanilla {spec[0]}: {results[spec[0]]['vanilla']['result']}", flush=True)
+        emu.stop()
+        g = Milestones(rom, elf, os.path.join(out_dir, "gunk.jsonl"))
+        g.setup()
+        for spec in todo:
+            r = g.milestone(spec)
+            if r["result"] == "finished":
+                r["save_cycle"] = g.save_cycle()
+            results[spec[0]]["gunk"] = r
+    finally:
+        emu.stop()
+    lines, failed = [], 0
+    for spec in todo:
+        name = spec[0]
+        gk, vn = results[name].get("gunk", {}), results[name]["vanilla"]
+        detail = [f"Gunk's {gk.get('result')}", f"vanilla {vn.get('result')}"]
+        ok = gk.get("result") == "finished" and gk.get("flag") == 1
+        if not gk.get("flag"):
+            detail.append("milestone flag not set")
+        if gk.get("result") == "finished" and vn.get("result") == "finished":
+            diff = story.outcome_diff(gk["outcome"], vn["outcome"])
+            if diff:
+                ok = False
+                detail.append("differs from vanilla: " + "; ".join(diff[:6]))
+        elif vn.get("result") != "finished":
+            detail.append("(vanilla did not finish either: test setup)")
+        if "save_cycle" in gk:
+            before, after, colors = gk["save_cycle"]
+            ok = ok and before == after and colors is not None and colors >= 4
+            detail.append(f"save and CONTINUE: map {before} -> {after}, follower colors {colors}/15")
+        if gk.get("title"):
+            detail.append("credits reached the title screen")
+        failed += not ok
+        lines.append(("PASS " if ok else "FAIL ") + name + ": " + ", ".join(detail))
+        print(lines[-1], flush=True)
+    lines.append(f"{len(todo) - failed}/{len(todo)} milestones passed in {time.time() - t0:.0f}s")
+    print(lines[-1])
+    open(os.path.join(out_dir, "milestones.txt"), "w").write("\n".join(lines) + "\n")
+    sys.exit(1 if failed else 0)
 
 
 if __name__ == "__main__":

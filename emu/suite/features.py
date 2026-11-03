@@ -12,7 +12,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lib import FLASH_SIZE, Game, decode_mon, encode_mon_evs  # noqa: E402
+from lib import FLASH_SIZE, SUBSTRUCT_ORDERS, Game, decode_mon, encode_mon_evs  # noqa: E402
 
 ERASED = b"\xff" * FLASH_SIZE
 GUNK_TEST_MAGIC = 0x4B4E5547
@@ -52,6 +52,7 @@ SB1_BAG_ITEMS = 0x0310
 SB2_OPTIONS = 0x14
 SB1_GUNK_DEXNAV = 0x348C  # offsetof(struct SaveBlock1, gunkDexNav)
 SB2_ENCRYPTION_KEY = 0xF20
+SB1_DAYCARE_STEP_COUNTER = 0x309A  # offsetof(struct SaveBlock1, daycare) + 2 * 140 + 2
 
 
 class Features:
@@ -314,6 +315,55 @@ class Features:
         path = self.path("_mon.bin")
         open(path, "wb").write(encode_mon_evs(raw, evs))
         self.g.cmd(f"poke EWRAM {addr - 0x02000000} {path}")
+
+    def make_egg(self, slot):
+        """Party slot <slot> becomes an egg of its species with no egg cycles left (friendship 0)."""
+        addr = self.g.a("gPlayerParty") + slot * 100
+        raw = bytearray(bytes.fromhex(self.g.cmd(f"read {addr} 100")[0].replace(" ", "")))
+        pid, otid = struct.unpack_from("<II", raw, 0)
+        key = pid ^ otid
+        dec = bytearray(b"".join(struct.pack("<I", struct.unpack_from("<I", raw, 0x20 + i)[0] ^ key)
+                                 for i in range(0, 48, 4)))
+        order = SUBSTRUCT_ORDERS[pid % 24]
+        g, m = order.index("G") * 12, order.index("M") * 12
+        dec[g + 9] = 0  # friendship = egg cycles left
+        struct.pack_into("<I", dec, m + 4, struct.unpack_from("<I", dec, m + 4)[0] | 1 << 30)  # isEgg
+        raw[19] |= 0b100  # the header's isEgg bit, as SetMonData(MON_DATA_IS_EGG) sets it
+        struct.pack_into("<H", raw, 0x1C, sum(struct.unpack_from("<24H", dec)) & 0xFFFF)
+        for i in range(0, 48, 4):
+            struct.pack_into("<I", raw, 0x20 + i, struct.unpack_from("<I", dec, i)[0] ^ key)
+        path = self.path("_mon.bin")
+        open(path, "wb").write(bytes(raw))
+        self.g.cmd(f"poke EWRAM {addr - 0x02000000} {path}")
+
+    def is_egg(self, slot):
+        raw = bytes.fromhex(self.g.cmd(f"read {self.g.a('gPlayerParty') + slot * 100} 100")[0].replace(" ", ""))
+        pid, otid = struct.unpack_from("<II", raw, 0)
+        m = SUBSTRUCT_ORDERS[pid % 24].index("M") * 12
+        return (struct.unpack_from("<I", raw, 0x20 + m + 4)[0] ^ pid ^ otid) >> 30 & 1
+
+    def check_egg_hatch(self):
+        """An egg with no cycles left hatches on the next egg cycle: 128 steps on Gunk's (256 in vanilla)."""
+        g = self.g
+        self.make_egg(0)
+        counter = self.sb1() + SB1_DAYCARE_STEP_COUNTER
+        g.cmd(f"write8 {counter} 0")
+        steps, x0 = 0, self.pos()[0]
+        for i in range(400):
+            g.cmd("press Left 8" if (i // 3) % 2 == 0 else "press Right 8", "wait 4")
+            if not g.field_ready():
+                break
+            steps = g.u8(counter)
+        self.shot("egg_hatching.png")
+        hatching = not g.field_ready()
+        for _ in range(80):  # the hatch scene; B declines the nickname
+            if g.field_ready():
+                break
+            g.cmd("press B 4", "wait 30")
+        hatched = g.field_ready() and not self.is_egg(0) and self.mon(0)["species"] == SPECIES["BULBASAUR"]
+        self.shot("egg_hatched.png")
+        self.record("egg hatching", hatching and hatched and steps <= 128,
+                    f"hatch scene after {steps + 1} steps, hatched {hatched}, species {self.mon(0)['species']}")
 
     def use_first_item_on(self, slot, name):
         """BAG (ITEMS pocket, first item) -> USE -> party slot; then A through its messages."""
@@ -682,6 +732,9 @@ def main():
         f.walk_to(15, 23)
         f.check_dexnav()
         f.check_exp_all_battle()
+        f.new_game(mons=[(SPECIES["BULBASAUR"], 5)], flags=[FLAG_GUNK_ENDLESS_REPEL_ON], name="egg")
+        f.warp(*MAP_ROUTE1, 4, 18, name="egg_warp")
+        f.check_egg_hatch()
         f.new_game(mons=[(SPECIES["KADABRA"], 35), (SPECIES["BULBASAUR"], 5)],
                    items=[(ITEM["RARE_CANDY"], 1), (ITEM["PROTEIN"], 3)], name="menus")
         f.check_kadabra()

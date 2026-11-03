@@ -788,7 +788,7 @@ def main():
         f.clear_flag(0x092)
         f.warp(3, 2, 45, 22, name="pewter_warp")
         f.check_pewter_aide_gift()
-        f.new_game(mons=[(SPECIES["BULBASAUR"], 12)], flags=[FLAG_SYS_POKEMON_GET, FLAG_SYS_B_DASH, 0x258], name="mom")
+        f.new_game(mons=[(SPECIES["BULBASAUR"], 12)], flags=[FLAG_SYS_POKEMON_GET, FLAG_SYS_POKEDEX_GET, FLAG_SYS_B_DASH, 0x258], name="mom")
         f.warp(4, 0, 8, 5, name="mom_warp")
         f.check_mom_gift()
         f.new_game(mons=[(SPECIES_LAPRAS, 30)], items=[(ITEM_HM03, 1)],

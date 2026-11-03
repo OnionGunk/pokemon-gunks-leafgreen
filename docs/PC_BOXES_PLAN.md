@@ -1,59 +1,76 @@
-# More PC boxes: plan
+# More PC boxes: plan and verdict
 
-Nothing here is built yet. This is the plan to agree on first, because it changes the save format.
+**Verdict: done, 16 boxes** (vanilla has 14), by packing boxed Pokémon tighter (option 4 below). Both save slots
+stay, and a vanilla FireRed or LeafGreen save still loads.
 
-## The constraint
+## The layout (src/save.c, include/save.h)
 
-LeafGreen's 128 KB flash is fully allocated (`include/save.h`, `src/save.c`):
+128 KB flash = 32 sectors of 4 KB, each with 3,968 data bytes and a 128-byte footer.
 
-| Sectors | Use |
-| --- | --- |
-| 0-13 and 14-27 | Two save slots, written alternately. Each slot: SaveBlock2 (1 sector), SaveBlock1 (4), PokemonStorage (9) |
-| 28-29 | Hall of Fame |
-| 30-31 | Trainer Tower e-Reader data (`src/cereader_tool.c`) |
+| Sectors | Holds | Double-buffered |
+|---|---|---|
+| 0-13 | Save slot 1 | yes |
+| 14-27 | Save slot 2 | yes |
+| 28-29 | Hall of Fame | no |
+| 30-31 | Trainer Tower (e-Reader) | no |
 
-`struct PokemonStorage` is 0x83D0 bytes: the current box, 14 × 30 `BoxPokemon` of 80 bytes, the box names and the
-wallpapers. Nine sectors hold 9 × 3968 = 35,712 bytes, which leaves **1,968 bytes free**: not enough for one more
-box (30 × 80 = 2,400).
+Each slot holds 14 sectors: SaveBlock2 (1 sector), SaveBlock1 (4 sectors), PokemonStorage (9 sectors).
 
-The two-slot scheme is what makes a power cut during a save harmless (the suite's `torn_save` tests it), so any
-extra boxes must be inside the slots, not in a single-copy area.
+| Block | Size | Room in its sectors | Free |
+|---|---|---|---|
+| SaveBlock2 | 0xF24 = 3,876 | 3,968 | 92 |
+| SaveBlock1 | 0x3D68 = 15,720 | 15,872 | 152 |
+| PokemonStorage, vanilla (14 boxes) | 0x83D0 = 33,744 | 35,712 | 1,968 |
+| PokemonStorage, Gunk's (16 boxes) | 0x83E8 = 33,768 | 35,712 | 1,944 |
 
-## Options
+One more box in the vanilla format costs 30 × 80 + 9 (name) + 1 (wallpaper) = 2,410 bytes, more than the slot's
+2,212 free bytes. RAM is the other limit: EWRAM had about 680 bytes free, so the boxes can't be kept unpacked in
+RAM either (two more vanilla boxes need 4,820).
 
-1. **Pack box Pokémon losslessly in the save file (recommended).** RAM keeps the normal 80-byte `BoxPokemon`;
-   only the save serializer packs them. The 80 bytes carry encryption, a checksum and padding. Packed bit fields
-   need about 66 bytes: personality 32, OT ID 32, nickname 80, language 3, flags 4, OT name 56, markings 4,
-   species 9, item 9, EXP 21, PP Ups 8, friendship 8, moves 4 × 9, PP 4 × 7, EVs 48, contest stats 48,
-   Pokérus 8, met location 8, origin 16, IVs/egg/ability 32, ribbons 32. That is 522 bits. At 66 bytes per Pokémon
-   plus 10 bytes of name and wallpaper per box, the nine sectors hold **17 boxes** (+3), with nothing lost and both
-   slots kept. The checksum and encryption are rebuilt on load, as the game does already.
-2. **Drop data FRLG can't use** (contest stats, PP that the box could restore) to reach about 58 bytes and 19-20
-   boxes. Contest stats matter when trading to Ruby/Sapphire/Emerald, so this loses information. Not recommended.
-3. **Use the Trainer Tower sectors 30-31.** Only the e-Reader card feature uses them. They are single copies, so a
-   power cut while writing them could lose those boxes; double-buffering them gives just one box. Not recommended.
+## Options considered
 
-## Plan for option 1
+1. **Use the free bytes in the slot.** 2,212 < 2,410: not even one box.
+2. **Free unused SaveBlock1 fields.** About 1-2 KB, so one box at most, split across blocks.
+3. **Use sectors 30-31.** Not double-buffered: a power cut while saving could lose those boxes. Rejected.
+4. **Pack boxed Pokémon tighter.** Chosen.
+5. **Bigger flash.** 128 KB is the largest GBA flash chip.
 
-- Save version tag in SaveBlock2's spare bytes (92 free). A save without the tag is a retail save: load it as is
-  and write the packed format on the next save. Retail saves carry over; the hack's saves don't go back to retail.
-- Pack and unpack in `SaveSerializedGame` / `LoadSerializedGame` paths only (`src/load_save.c`), through a
-  separate buffer, so the sector writer and the slot logic in `src/save.c` stay unchanged.
-- `TOTAL_BOXES_COUNT` 14 → 17. Check every user: the PC UI (box list, jump menu), `GetBoxNamePtr`, wallpapers,
-  "the box is full" messages and the auto-send of caught Pokémon.
-- Tests: full boxes (17 × 30) through save cycles and torn saves; a retail save upgraded and every box checked;
-  every field of every Pokémon compared before and after a save and reload.
+## What was done
 
-## Finding: EWRAM is full (first build, 2026-11-02)
+Boxed Pokémon are kept packed in RAM as well as in the save, 70 bytes each (`Gunk_PackBoxMon` and
+`Gunk_UnpackBoxMon` in `src/pokemon.c`). They are stored decrypted, in a fixed substructure order:
 
-The linker reports EWRAM 261,040 of 262,144 bytes used (99.6%): **1,104 bytes free**. 17 boxes in RAM need 7,230 more
-bytes (3 boxes of 30 × 80, plus names and wallpapers), so the flash side is not the only limit.
+| Offset | Bytes | Holds |
+|---|---|---|
+| 0 | 28 | personality, OT ID, nickname, language, flags byte, OT name, markings (as in struct BoxPokemon) |
+| 28 | 10 | experience, PP bonuses, friendship, the four PP |
+| 38 | 24 | substructs 2 and 3 as they are (EVs, contest stats, met data, IVs, ribbons) |
+| 62 | 8 | 10-bit species, held item and four moves, then one bit: the checksum failed |
 
-- The packed save needs no extra buffer: pack and unpack one sector at a time in the sector writer and reader.
-  Sector 0 holds the header (current box, 17 names, 17 wallpapers: 171 bytes) and 57 Pokémon, sectors 1-8 hold
-  60 each (3,960 bytes): 537 slots for the 510 needed.
-- The 7,230 bytes of RAM have to come from the heap (`gHeap`, 0x1C000 = 114,688 bytes, at the start of EWRAM).
-  Shrinking it is only safe once the heap's peak use is measured in every screen that allocates from it (PC,
-  Pokédex, summary, bag, battle, trainer card, town map, Fame Checker, naming screen, Teachy TV, Quest Log, link
-  rooms). Plan: a debug build that records the peak `Alloc` total, walked through those screens with the harness.
-- The box change lands only if the measured peak leaves at least the 7,230 bytes plus a safety margin.
+Dropped: the checksum (recomputed on unpack; a Bad Egg's bit makes the recomputed one fail again), the u16 after
+it (never read; only Shedinja's creation writes it, with 0) and substruct 0's filler. Species, item and move IDs
+are all below 1,024 (checked by a STATIC_ASSERT). The storage struct grows by 24 bytes.
+
+Every box access goes through `src/pokemon_storage_system.c` (`GetBoxMonDataAt`, `SetBoxMonAt`,
+`CopyBoxMonAt`...), which unpack a copy and repack writes. `GetBoxedMonPtr` is gone; its callers copy. The summary
+screen needs a box as an array, so it gets an unpacked copy (2,400 bytes on the heap) that is written back when it
+returns.
+
+A vanilla save is recognized by `gunkFormat` ("GBX1"), which lies past the vanilla struct's end, where a vanilla
+save has zeros (those zeros also leave the sector checksum unchanged). `Gunk_UpgradeBoxStorage` converts the 14
+boxes in place after loading, keeping names, wallpapers and the current box; boxes 15 and 16 start empty.
+
+## Tests (`emu/suite/boxes.py`)
+
+A save made in vanilla FireRed with 420 generated Pokémon (normal ones, eggs, Bad Eggs, empty slots, edge values
+such as Chimecho with item 374 and Psycho Boost), a renamed box and a changed wallpaper:
+
+- the conversion matches an independent Python packer byte for byte (480/480 slots); names, wallpapers and the
+  current box are kept, and boxes 15-16 are named BOX15/BOX16;
+- a Gunk's save and reload leaves the storage identical;
+- the summary screen on boxes 1, 7, 14 and 16 gets all 30 Pokémon unpacked to the original 80 bytes (Bad Eggs
+  still fail their checksum), and closing it writes the box back unchanged;
+- 16 full boxes survive a save and reload;
+- the box list wraps from box 1 to box 16.
+
+The save suite (`emu/suite/suite.py`) and the feature checks also pass on this build.

@@ -3717,11 +3717,10 @@ static u8 SendMonToPC(struct Pokemon* mon)
     {
         for (boxPos = 0; boxPos < IN_BOX_COUNT; boxPos++)
         {
-            struct BoxPokemon* checkingMon = GetBoxedMonPtr(boxNo, boxPos);
-            if (GetBoxMonData(checkingMon, MON_DATA_SPECIES, NULL) == SPECIES_NONE)
+            if (GetBoxMonDataAt(boxNo, boxPos, MON_DATA_SPECIES) == SPECIES_NONE)
             {
                 MonRestorePP(mon);
-                CopyMon(checkingMon, &mon->box, sizeof(mon->box));
+                SetBoxMonAt(boxNo, boxPos, &mon->box);
                 gSpecialVar_MonBoxId = boxNo;
                 gSpecialVar_MonBoxPos = boxPos;
                 if (GetPCBoxToSendMon() != boxNo)
@@ -6450,4 +6449,74 @@ u8 *MonSpritesGfxManager_GetSpritePtr(u8 spriteNum)
             spriteNum = 0;
         return sMonSpritesGfxManager->spritePointers[spriteNum];
     }
+}
+
+// Gunk's: 16 PC boxes. A boxed Pokémon is stored in GUNK_PACKED_BOX_MON_SIZE (70) bytes instead of 80, decrypted
+// and in a fixed order:
+//   0  personality, OT ID, nickname, language, flags byte, OT name, markings (bytes 0-27 of struct BoxPokemon)
+//  28  experience (4), PP bonuses, friendship, PP (4)
+//  38  substruct 2 (EVs, contest stats), then substruct 3 (met data, IVs, ribbons): 12 bytes each, as they are
+//  62  8 bytes of 10-bit fields: species, held item, the four moves; then one bit for a bad checksum
+// Dropped: the checksum (recomputed on unpack), the never-read u16 after it and substruct 0's filler.
+// Species, item and move IDs all fit in 10 bits.
+STATIC_ASSERT(NUM_SPECIES < 1024 && ITEMS_COUNT < 1024 && MOVES_COUNT < 1024, GunkPackedBoxMonIdsFit);
+STATIC_ASSERT(offsetof(struct BoxPokemon, checksum) == 28, GunkPackedBoxMonHeader);
+
+#define GUNK_PACK_HEADER_SIZE 28
+#define GUNK_PACK_BAD_CHECKSUM (1 << 28)
+
+void Gunk_PackBoxMon(const struct BoxPokemon *src, u8 *dst)
+{
+    struct BoxPokemon mon = *src;
+    struct PokemonSubstruct0 *s0;
+    struct PokemonSubstruct1 *s1;
+    u32 lo, hi;
+
+    DecryptBoxMon(&mon);
+    s0 = &GetSubstruct(&mon, mon.personality, 0)->type0;
+    s1 = &GetSubstruct(&mon, mon.personality, 1)->type1;
+    memcpy(dst, &mon, GUNK_PACK_HEADER_SIZE);
+    memcpy(dst + 28, &s0->experience, 4);
+    dst[32] = s0->ppBonuses;
+    dst[33] = s0->friendship;
+    memcpy(dst + 34, s1->pp, MAX_MON_MOVES);
+    memcpy(dst + 38, GetSubstruct(&mon, mon.personality, 2), NUM_SUBSTRUCT_BYTES);
+    memcpy(dst + 50, GetSubstruct(&mon, mon.personality, 3), NUM_SUBSTRUCT_BYTES);
+    lo = (s0->species & 0x3FF) | ((s0->heldItem & 0x3FF) << 10) | ((s1->moves[0] & 0x3FF) << 20) | ((s1->moves[1] & 3) << 30);
+    hi = ((s1->moves[1] >> 2) & 0xFF) | ((s1->moves[2] & 0x3FF) << 8) | ((s1->moves[3] & 0x3FF) << 18);
+    // a Bad Egg (or any Pokémon whose checksum fails) must stay one
+    if (CalculateBoxMonChecksum(&mon) != mon.checksum)
+        hi |= GUNK_PACK_BAD_CHECKSUM;
+    memcpy(dst + 62, &lo, 4);
+    memcpy(dst + 66, &hi, 4);
+}
+
+void Gunk_UnpackBoxMon(const u8 *src, struct BoxPokemon *dst)
+{
+    struct PokemonSubstruct0 *s0;
+    struct PokemonSubstruct1 *s1;
+    u32 lo, hi;
+
+    memset(dst, 0, sizeof(*dst));
+    memcpy(dst, src, GUNK_PACK_HEADER_SIZE);
+    memcpy(&lo, src + 62, 4);
+    memcpy(&hi, src + 66, 4);
+    s0 = &GetSubstruct(dst, dst->personality, 0)->type0;
+    s1 = &GetSubstruct(dst, dst->personality, 1)->type1;
+    s0->species = lo & 0x3FF;
+    s0->heldItem = (lo >> 10) & 0x3FF;
+    memcpy(&s0->experience, src + 28, 4);
+    s0->ppBonuses = src[32];
+    s0->friendship = src[33];
+    s1->moves[0] = (lo >> 20) & 0x3FF;
+    s1->moves[1] = (lo >> 30) | ((hi & 0xFF) << 2);
+    s1->moves[2] = (hi >> 8) & 0x3FF;
+    s1->moves[3] = (hi >> 18) & 0x3FF;
+    memcpy(s1->pp, src + 34, MAX_MON_MOVES);
+    memcpy(GetSubstruct(dst, dst->personality, 2), src + 38, NUM_SUBSTRUCT_BYTES);
+    memcpy(GetSubstruct(dst, dst->personality, 3), src + 50, NUM_SUBSTRUCT_BYTES);
+    dst->checksum = CalculateBoxMonChecksum(dst);
+    if (hi & GUNK_PACK_BAD_CHECKSUM)
+        dst->checksum ^= 0xFFFF;
+    EncryptBoxMon(dst);
 }

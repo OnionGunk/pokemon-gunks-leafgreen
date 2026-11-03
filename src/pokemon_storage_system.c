@@ -1,6 +1,7 @@
 #include "global.h"
 #include "gflib.h"
 #include "pokemon_storage_system_internal.h"
+#include "strings.h"
 
 void BackupPokemonStorage(struct PokemonStorage * dest)
 {
@@ -24,18 +25,33 @@ void SetCurrentBox(u8 boxId)
         gPokemonStoragePtr->currentBox = boxId;
 }
 
+// Gunk's: boxed Pokémon are stored packed (Gunk_PackBoxMon), so every access unpacks a copy and writes repack it.
+#define VALID_BOX_SLOT(boxId, boxPosition) ((boxId) < TOTAL_BOXES_COUNT && (boxPosition) < IN_BOX_COUNT)
+#define PACKED_MON(boxId, boxPosition) (gPokemonStoragePtr->boxes[boxId][boxPosition])
+
 u32 GetBoxMonDataAt(u8 boxId, u8 boxPosition, s32 request)
 {
-    if (boxId < TOTAL_BOXES_COUNT && boxPosition < IN_BOX_COUNT)
-        return GetBoxMonData(&gPokemonStoragePtr->boxes[boxId][boxPosition], request);
+    struct BoxPokemon mon;
+
+    if (VALID_BOX_SLOT(boxId, boxPosition))
+    {
+        Gunk_UnpackBoxMon(PACKED_MON(boxId, boxPosition), &mon);
+        return GetBoxMonData(&mon, request);
+    }
     else
         return 0;
 }
 
 void SetBoxMonDataAt(u8 boxId, u8 boxPosition, s32 request, const void *value)
 {
-    if (boxId < TOTAL_BOXES_COUNT && boxPosition < IN_BOX_COUNT)
-        SetBoxMonData(&gPokemonStoragePtr->boxes[boxId][boxPosition], request, value);
+    struct BoxPokemon mon;
+
+    if (VALID_BOX_SLOT(boxId, boxPosition))
+    {
+        Gunk_UnpackBoxMon(PACKED_MON(boxId, boxPosition), &mon);
+        SetBoxMonData(&mon, request, value);
+        Gunk_PackBoxMon(&mon, PACKED_MON(boxId, boxPosition));
+    }
 }
 
 u32 GetCurrentBoxMonData(u8 boxPosition, s32 request)
@@ -50,69 +66,121 @@ void SetCurrentBoxMonData(u8 boxPosition, s32 request, const void *value)
 
 void GetBoxMonNickAt(u8 boxId, u8 boxPosition, u8 *dst)
 {
-    if (boxId < TOTAL_BOXES_COUNT && boxPosition < IN_BOX_COUNT)
-        GetBoxMonData(&gPokemonStoragePtr->boxes[boxId][boxPosition], MON_DATA_NICKNAME, dst);
+    struct BoxPokemon mon;
+
+    if (VALID_BOX_SLOT(boxId, boxPosition))
+    {
+        Gunk_UnpackBoxMon(PACKED_MON(boxId, boxPosition), &mon);
+        GetBoxMonData(&mon, MON_DATA_NICKNAME, dst);
+    }
     else
         *dst = EOS;
 }
 
 void SetBoxMonNickAt(u8 boxId, u8 boxPosition, const u8 *nick)
 {
-    if (boxId < TOTAL_BOXES_COUNT && boxPosition < IN_BOX_COUNT)
-        SetBoxMonData(&gPokemonStoragePtr->boxes[boxId][boxPosition], MON_DATA_NICKNAME, nick);
+    SetBoxMonDataAt(boxId, boxPosition, MON_DATA_NICKNAME, nick);
 }
 
 u32 GetAndCopyBoxMonDataAt(u8 boxId, u8 boxPosition, s32 request, void *dst)
 {
-    if (boxId < TOTAL_BOXES_COUNT && boxPosition < IN_BOX_COUNT)
-        return GetBoxMonData(&gPokemonStoragePtr->boxes[boxId][boxPosition], request, dst);
+    struct BoxPokemon mon;
+
+    if (VALID_BOX_SLOT(boxId, boxPosition))
+    {
+        Gunk_UnpackBoxMon(PACKED_MON(boxId, boxPosition), &mon);
+        return GetBoxMonData(&mon, request, dst);
+    }
     else
         return 0;
 }
 
 void SetBoxMonAt(u8 boxId, u8 boxPosition, struct BoxPokemon * src)
 {
-    if (boxId < TOTAL_BOXES_COUNT && boxPosition < IN_BOX_COUNT)
-        gPokemonStoragePtr->boxes[boxId][boxPosition] = *src;
+    if (VALID_BOX_SLOT(boxId, boxPosition))
+        Gunk_PackBoxMon(src, PACKED_MON(boxId, boxPosition));
 }
 
 void CopyBoxMonAt(u8 boxId, u8 boxPosition, struct BoxPokemon * dst)
 {
-    if (boxId < TOTAL_BOXES_COUNT && boxPosition < IN_BOX_COUNT)
-        *dst = gPokemonStoragePtr->boxes[boxId][boxPosition];
+    if (VALID_BOX_SLOT(boxId, boxPosition))
+        Gunk_UnpackBoxMon(PACKED_MON(boxId, boxPosition), dst);
 }
 
 void CreateBoxMonAt(u8 boxId, u8 boxPosition, u16 species, u8 level, u8 fixedIV, u8 hasFixedPersonality, u32 personality, u8 otIDType, u32 otID)
 {
-    if (boxId < TOTAL_BOXES_COUNT && boxPosition < IN_BOX_COUNT)
+    struct BoxPokemon mon;
+
+    if (VALID_BOX_SLOT(boxId, boxPosition))
     {
-        CreateBoxMon(&gPokemonStoragePtr->boxes[boxId][boxPosition],
+        CreateBoxMon(&mon,
                      species,
                      level,
                      fixedIV,
                      hasFixedPersonality, personality,
                      otIDType, otID);
+        Gunk_PackBoxMon(&mon, PACKED_MON(boxId, boxPosition));
     }
 }
 
 void ZeroBoxMonAt(u8 boxId, u8 boxPosition)
 {
-    if (boxId < TOTAL_BOXES_COUNT && boxPosition < IN_BOX_COUNT)
-        ZeroBoxMonData(&gPokemonStoragePtr->boxes[boxId][boxPosition]);
+    // an all-zero packed Pokémon unpacks to an all-zero (empty) BoxPokemon
+    if (VALID_BOX_SLOT(boxId, boxPosition))
+        memset(PACKED_MON(boxId, boxPosition), 0, GUNK_PACKED_BOX_MON_SIZE);
 }
 
 void BoxMonAtToMon(u8 boxId, u8 boxPosition, struct Pokemon * dst)
 {
-    if (boxId < TOTAL_BOXES_COUNT && boxPosition < IN_BOX_COUNT)
-        BoxMonToMon(&gPokemonStoragePtr->boxes[boxId][boxPosition], dst);
+    struct BoxPokemon mon;
+
+    if (VALID_BOX_SLOT(boxId, boxPosition))
+    {
+        Gunk_UnpackBoxMon(PACKED_MON(boxId, boxPosition), &mon);
+        BoxMonToMon(&mon, dst);
+    }
 }
 
-struct BoxPokemon * GetBoxedMonPtr(u8 boxId, u8 boxPosition)
+// Gunk's: a save from vanilla FireRed (or a Gunk's build before 16 boxes) has 14 boxes of 80-byte BoxPokemon.
+// Called after a save is loaded: converts that layout to the packed one in place. Packed Pokémon i ends before
+// vanilla Pokémon i + 1 starts (70 * (i + 1) <= 80 * (i + 1)), so converting in order never overwrites one unread.
+void Gunk_UpgradeBoxStorage(void)
 {
-    if (boxId < TOTAL_BOXES_COUNT && boxPosition < IN_BOX_COUNT)
-        return &gPokemonStoragePtr->boxes[boxId][boxPosition];
-    else
-        return NULL;
+    u8 names[VANILLA_TOTAL_BOXES_COUNT][BOX_NAME_LENGTH + 1];
+    u8 wallpapers[VANILLA_TOTAL_BOXES_COUNT];
+    u8 *base = (u8 *)gPokemonStoragePtr;
+    u8 *packed = &gPokemonStoragePtr->boxes[0][0][0];
+    struct BoxPokemon mon;
+    u16 i;
+
+    if (gPokemonStoragePtr->gunkFormat == GUNK_BOX_FORMAT)
+        return;
+    memcpy(names, base + 4 + VANILLA_TOTAL_BOXES_COUNT * IN_BOX_COUNT * sizeof(struct BoxPokemon), sizeof(names));
+    memcpy(wallpapers, base + 4 + VANILLA_TOTAL_BOXES_COUNT * IN_BOX_COUNT * sizeof(struct BoxPokemon) + sizeof(names), sizeof(wallpapers));
+    for (i = 0; i < VANILLA_TOTAL_BOXES_COUNT * IN_BOX_COUNT; i++)
+    {
+        memcpy(&mon, base + 4 + i * sizeof(struct BoxPokemon), sizeof(mon));
+        Gunk_PackBoxMon(&mon, packed + i * GUNK_PACKED_BOX_MON_SIZE);
+    }
+    memset(packed + VANILLA_TOTAL_BOXES_COUNT * IN_BOX_COUNT * GUNK_PACKED_BOX_MON_SIZE, 0,
+           (TOTAL_BOXES_COUNT - VANILLA_TOTAL_BOXES_COUNT) * IN_BOX_COUNT * GUNK_PACKED_BOX_MON_SIZE);
+    for (i = 0; i < TOTAL_BOXES_COUNT; i++)
+    {
+        if (i < VANILLA_TOTAL_BOXES_COUNT)
+        {
+            memcpy(gPokemonStoragePtr->boxNames[i], names[i], BOX_NAME_LENGTH + 1);
+            gPokemonStoragePtr->boxWallpapers[i] = wallpapers[i];
+        }
+        else
+        {
+            u8 *dest = StringCopy(gPokemonStoragePtr->boxNames[i], gText_Box);
+            ConvertIntToDecimalStringN(dest, i + 1, STR_CONV_MODE_LEFT_ALIGN, 2);
+            gPokemonStoragePtr->boxWallpapers[i] = i % (MAX_DEFAULT_WALLPAPER + 1);
+        }
+    }
+    if (gPokemonStoragePtr->currentBox >= TOTAL_BOXES_COUNT)
+        gPokemonStoragePtr->currentBox = 0;
+    gPokemonStoragePtr->gunkFormat = GUNK_BOX_FORMAT;
 }
 
 u8 *GetBoxNamePtr(u8 boxId)

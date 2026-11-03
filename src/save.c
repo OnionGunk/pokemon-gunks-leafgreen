@@ -828,6 +828,9 @@ u8 LoadGameSave(u8 saveType)
     default:
         result = TryLoadSaveSlot(FULL_SAVE_SLOT, gRamSaveSectorLocations);
         LoadSerializedGame();
+        // Gunk's: a vanilla save's 14 boxes become the packed 16-box layout
+        if (result == SAVE_STATUS_OK)
+            Gunk_UpgradeBoxStorage();
         gSaveFileStatus = result;
         gGameContinueCallback = NULL;
         break;

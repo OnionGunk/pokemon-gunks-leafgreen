@@ -12,6 +12,7 @@
 #include "constants/moves.h"
 #include "constants/songs.h"
 
+static EWRAM_DATA struct BoxPokemon *sGunkSummaryBox = NULL;
 static EWRAM_DATA struct Pokemon sMonBeingCarried = {};
 static EWRAM_DATA s8 sCursorArea = 0;
 static EWRAM_DATA s8 sCursorPosition = 0;
@@ -886,11 +887,29 @@ void InitSummaryScreenData(void)
     }
     else
     {
-        gStorage->summaryMonPtr.box = GetBoxedMonPtr(StorageGetCurrentBox(), 0);
+        // Gunk's: boxed Pokémon are stored packed; the summary screen gets an unpacked copy of the box, written
+        // back by Gunk_SaveSummaryBox when it returns
+        u8 i;
+
+        sGunkSummaryBox = Alloc(IN_BOX_COUNT * sizeof(struct BoxPokemon));
+        for (i = 0; i < IN_BOX_COUNT; i++)
+            CopyBoxMonAt(StorageGetCurrentBox(), i, &sGunkSummaryBox[i]);
+        gStorage->summaryMonPtr.box = sGunkSummaryBox;
         gStorage->summaryCursorPos = sCursorPosition;
         gStorage->summaryLastIndex = IN_BOX_COUNT - 1;
         gStorage->summaryScreenMode = PSS_MODE_BOX;
     }
+}
+
+void Gunk_SaveSummaryBox(void)
+{
+    u8 i;
+
+    if (sGunkSummaryBox == NULL)
+        return;
+    for (i = 0; i < IN_BOX_COUNT; i++)
+        SetBoxMonAt(StorageGetCurrentBox(), i, &sGunkSummaryBox[i]);
+    FREE_AND_SET_NULL(sGunkSummaryBox);
 }
 
 void SetSelectionAfterSummaryScreen(void)
@@ -999,8 +1018,13 @@ static void TrySetDisplayMonData(void)
             SetDisplayMonData(NULL, MODE_MOVE);
             break;
         case CURSOR_AREA_IN_BOX:
-            SetDisplayMonData(GetBoxedMonPtr(StorageGetCurrentBox(), sCursorPosition), MODE_BOX);
+        {
+            struct BoxPokemon boxMon;
+
+            CopyBoxMonAt(StorageGetCurrentBox(), sCursorPosition, &boxMon);
+            SetDisplayMonData(&boxMon, MODE_BOX);
             break;
+        }
         }
     }
 }

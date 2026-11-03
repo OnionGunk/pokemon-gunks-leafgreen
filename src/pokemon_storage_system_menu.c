@@ -418,6 +418,7 @@ void ResetPokemonStorageSystem(void)
 
     for (boxId = 0; boxId < TOTAL_BOXES_COUNT; boxId++)
         SetBoxWallpaper(boxId, boxId % (MAX_DEFAULT_WALLPAPER + 1));
+    gPokemonStoragePtr->gunkFormat = GUNK_BOX_FORMAT;
 }
 
 void LoadChooseBoxMenuGfx(struct ChooseBoxMenu *menu, u16 tileTag, u16 palTag, u8 subpriority, bool32 loadPal)

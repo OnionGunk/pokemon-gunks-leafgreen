@@ -3,7 +3,7 @@
 Each Gunk's Platinum change, what LeafGreen already has, and what this hack does. The code comes from Gunk's
 FireRed (same pret base); every check below was run again on the LeafGreen build. **Test** says how it was checked
 in the emulator: `emu/suite/features.py` (feature checks, named in quotes) and `emu/suite/suite.py` (save
-suite), both run after every build. Status: **done** = in the build and checked in the emulator.
+suite), both run after every build, plus `emu/suite/boxes.py` for the PC boxes. Status: **done** = in the build and checked in the emulator.
 
 | # | Change | LeafGreen (vanilla) | What Gunk's LeafGreen does | Status | Test |
 |---|---|---|---|---|---|
@@ -24,7 +24,7 @@ suite), both run after every build. Status: **done** = in the build and checked 
 | 14 | HMs without teaching | Need the move | A Pokémon that could learn the move from an HM in the bag can use it: by script (`checkpartymove`), by facing water (Surf) and from the party menu, which lists it while there's room. Badges still apply | done | "HM without teaching" (Route 2's Cut tree), "follower and Surf" (a Lapras without Surf) |
 | 15 | Move Tutor | Move Maniac (Two Island, for mushrooms), Move Deleter (Fuchsia) | Every Pokémon Center PC has a free MOVE TUTOR row that remembers level-up moves and forgets moves | done | "PC move tutor" |
 | 16 | Faster egg hatching | An egg cycle every 256 steps | Every 128 steps (`src/daycare.c`) | done | code only; the test hook can't make an egg yet |
-| 17 | More PC boxes | 14 boxes; storage fills its 9 flash sectors | Approved: 17 boxes by packing box Pokémon in the save. Blocked on RAM: EWRAM has 1.1 KB free and 17 boxes need 7.2 KB, which only a smaller heap can give; see `docs/PC_BOXES_PLAN.md` | planned | |
+| 17 | More PC boxes | 14 boxes; storage fills its 9 flash sectors | 16 boxes. Boxed Pokémon are packed from 80 to 70 bytes (`Gunk_PackBoxMon`), so they fit the same 9 sectors and both save slots stay. A vanilla LeafGreen save is converted when it loads. See `docs/PC_BOXES_PLAN.md` | testing | `emu/suite/boxes.py`: a vanilla save with 420 Pokémon (eggs, Bad Eggs, edge values) converted byte for byte, a save and reload, the summary screen unpacking boxes 1, 7, 14 and 16, all 16 boxes full across a save, the box list wrapping to box 16 |
 | 18 | DexNav | — | Key item (slot 54): lists the map's grass Pokémon; the chosen one hides in rustling grass nearby. Normal wild rolls; the search level and chain set how many are rolled (the best is kept). Search data in SaveBlock1's unused 400 bytes | done | "dexnav", "dexnav search level" |
 | 19 | Following Pokémon | — | The lead walks behind the player: all 386 species, shinies in shiny colors. Movement ported from MinimalEffort07/pokefirered; sprites from pokeemerald-expansion. RETURN on the lead's party menu puts it away (flag 0x4AA), WALK brings it back | done | "follower on/off switch", "follower", "follower and Surf", "follower across a map edge", "follower through a door", "follower and saving", "follower palette after a menu", "story opening" |
 

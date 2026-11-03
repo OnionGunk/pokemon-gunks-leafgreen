@@ -430,6 +430,7 @@ void EnterPokeStorage(u8 boxOption)
 
 void CB2_ReturnToPokeStorage(void)
 {
+    Gunk_SaveSummaryBox();
     ResetTasks();
     gStorage = Alloc(sizeof(struct PokemonStorageSystemData));
     if (gStorage == NULL)

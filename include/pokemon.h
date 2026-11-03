@@ -102,6 +102,9 @@ union PokemonSubstruct
     u16 raw[NUM_SUBSTRUCT_BYTES / 2]; // /2 because it's u16, not u8
 };
 
+// Gunk's: the size of a boxed Pokémon in PC storage (see Gunk_PackBoxMon)
+#define GUNK_PACKED_BOX_MON_SIZE 70
+
 struct BoxPokemon
 {
     u32 personality;
@@ -313,6 +316,8 @@ void CreateBattleTowerMon(struct Pokemon *mon, struct BattleTowerPokemon *src);
 void ConvertPokemonToBattleTowerPokemon(struct Pokemon *mon, struct BattleTowerPokemon *dest);
 void CalculateMonStats(struct Pokemon *mon);
 void BoxMonToMon(struct BoxPokemon *src, struct Pokemon *dest);
+void Gunk_PackBoxMon(const struct BoxPokemon *src, u8 *dst);
+void Gunk_UnpackBoxMon(const u8 *src, struct BoxPokemon *dst);
 u8 GetLevelFromBoxMonExp(struct BoxPokemon *boxMon);
 u16 GiveMoveToMon(struct Pokemon *mon, u16 move);
 u16 GiveMoveToBattleMon(struct BattlePokemon *mon, u16 move);

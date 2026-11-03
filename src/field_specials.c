@@ -1642,11 +1642,13 @@ bool8 NameRaterWasNicknameChanged(void)
 
 void ChangeBoxPokemonNickname(void)
 {
-    struct BoxPokemon * pokemon = GetBoxedMonPtr(gSpecialVar_MonBoxId, gSpecialVar_MonBoxPos);
+    struct BoxPokemon boxMon;
+    struct BoxPokemon * pokemon = &boxMon;
     u16 species;
     u8 gender;
     u32 personality;
 
+    CopyBoxMonAt(gSpecialVar_MonBoxId, gSpecialVar_MonBoxPos, pokemon);
 
     GetBoxMonData(pokemon, MON_DATA_NICKNAME, gStringVar3);
     GetBoxMonData(pokemon, MON_DATA_NICKNAME, gStringVar2);
@@ -2016,7 +2018,7 @@ bool8 IsDestinationBoxFull(void)
     {
         for (j = 0; j < IN_BOX_COUNT; j++)
         {
-            if (GetBoxMonData(GetBoxedMonPtr(i, j), MON_DATA_SPECIES, NULL) == SPECIES_NONE)
+            if (GetBoxMonDataAt(i, j, MON_DATA_SPECIES) == SPECIES_NONE)
             {
                 if (GetPCBoxToSendMon() != i)
                     FlagClear(FLAG_SHOWN_BOX_WAS_FULL_MESSAGE);

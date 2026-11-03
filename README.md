@@ -10,7 +10,7 @@ check; [`docs/GUNK_CHANGES.md`](docs/GUNK_CHANGES.md) lists each change and its 
 
 - **DexNav.** See each route's Pokémon (caught, seen or unseen) and search for one in the grass.
 - **Pokémon follow you.**
-- **More PC boxes** are planned: 17, if memory allows it safely (see [`docs/PC_BOXES_PLAN.md`](docs/PC_BOXES_PLAN.md)).
+- **16 PC boxes** instead of 14. A save from vanilla LeafGreen loads, with its boxes kept.
 - **Faster play:** an INSTANT text speed, a faster EXP bar, auto-run, faster egg hatching.
 - **Items:** reusable TMs, two registered items (SELECT and R), bag sorting (START), a prompt to use another
   Repel when one runs out, and an Endless Repel toggle. The new key items come from Oak's aide in Pewter City.

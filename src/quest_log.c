@@ -674,11 +674,10 @@ void QL_ResetPartyAndPC(void)
         {
             for (j = 0; j < IN_BOX_COUNT; j++)
             {
-                struct BoxPokemon * boxMon = GetBoxedMonPtr(i, j);
-                if (!GetBoxMonData(boxMon, MON_DATA_SANITY_HAS_SPECIES))
+                if (!GetBoxMonDataAt(i, j, MON_DATA_SANITY_HAS_SPECIES))
                 {
                     // Replace the additional slots with placeholder Pokémon.
-                    CopyMon(boxMon, &prev->mon.box, sizeof(struct BoxPokemon));
+                    SetBoxMonAt(i, j, &prev->mon.box);
                     if (++count == prev->boxMonCount)
                         break;
                 }

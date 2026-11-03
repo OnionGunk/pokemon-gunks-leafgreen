@@ -471,6 +471,7 @@ void SaveMovingMon(void);
 void LoadSavedMovingMon(void);
 void InitSummaryScreenData(void);
 void SetSelectionAfterSummaryScreen(void);
+void Gunk_SaveSummaryBox(void);
 void StartCursorAnim(u8 animNum);
 u8 GetMovingMonOriginalBoxId(void);
 void TryHideItemAtCursor(void);

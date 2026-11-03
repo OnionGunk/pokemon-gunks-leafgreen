@@ -53,4 +53,15 @@ void StartFollowerSwapStep(u8 direction);
 u8 GetFollowerMakeWayDirection(s16 x, s16 y, u8 direction);
 void StartFollowerMakeWayStep(u8 stepDirection);
 
+// Gunk_FollowerTalkPrepare's VAR_RESULT (EventScript_GunkFollowerTalk switches on the same numbers)
+#define FOLLOWER_TALK_TIRED   0
+#define FOLLOWER_TALK_WARY    1
+#define FOLLOWER_TALK_SHY     2
+#define FOLLOWER_TALK_STEADY  3
+#define FOLLOWER_TALK_HAPPY   4
+#define FOLLOWER_TALK_DEVOTED 5
+
+void Gunk_FollowerTalkPrepare(void);
+extern const u8 EventScript_GunkFollowerTalk[];
+
 #endif /* GUARD_GUNK_FOLLOWER_H */

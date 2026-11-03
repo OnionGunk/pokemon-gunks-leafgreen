@@ -1,4 +1,5 @@
 #include "global.h"
+#include "gunk_follower.h"
 #include "gflib.h"
 #include "bike.h"
 #include "coord_event_weather.h"
@@ -449,6 +450,14 @@ static const u8 *GetInteractedObjectEventScript(struct MapPosition *position, u8
     const u8 *script;
 
     objectEventId = GetObjectEventIdByPosition(position->x, position->y, position->elevation);
+    // Gunk's: A on the follower gets a line from it (it has no map template, so no script of its own)
+    if (objectEventId != OBJECT_EVENTS_COUNT && gObjectEvents[objectEventId].localId == LOCALID_FOLLOWER)
+    {
+        gSelectedObjectEvent = objectEventId;
+        gSpecialVar_LastTalked = LOCALID_FOLLOWER;
+        gSpecialVar_Facing = direction;
+        return EventScript_GunkFollowerTalk;
+    }
     if (!IsTalkableObjectEvent(objectEventId))
     {
         if (MetatileBehavior_IsCounter(metatileBehavior) != TRUE)

@@ -157,6 +157,7 @@
 #include "fieldmap.h"
 #include "metatile_behavior.h"
 #include "pokemon.h"
+#include "string_util.h"
 #include "random.h"
 #include "sprite.h"
 
@@ -1334,4 +1335,39 @@ void StartFollowerMakeWayStep(u8 stepDirection)
         return;
     ObjectEventClearHeldMovementIfFinished(followerObj);
     ObjectEventSetHeldMovement(followerObj, GetWalkFastMovementAction(stepDirection));
+}
+
+/**
+ * SPECIAL: Gunk_FollowerTalkPrepare
+ *
+ * For the A button on the follower (EventScript_GunkFollowerTalk): STR_VAR_1 =
+ * its nickname, VAR_RESULT = which line it gets:
+ *   FOLLOWER_TALK_TIRED     below a quarter of its HP
+ *   FOLLOWER_TALK_WARY      friendship below 50
+ *   FOLLOWER_TALK_SHY       50 to 99
+ *   FOLLOWER_TALK_STEADY    100 to 199
+ *   FOLLOWER_TALK_HAPPY     200 to 254
+ *   FOLLOWER_TALK_DEVOTED   255
+ * Reads only: the follower and the party are left as they are.
+ */
+void Gunk_FollowerTalkPrepare(void)
+{
+    struct Pokemon *mon = &gPlayerParty[GetFollowerPartySlot()];
+    u8 friendship = GetMonData(mon, MON_DATA_FRIENDSHIP);
+    u16 hp = GetMonData(mon, MON_DATA_HP), maxHp = GetMonData(mon, MON_DATA_MAX_HP);
+
+    GetMonData(mon, MON_DATA_NICKNAME, gStringVar1);
+    StringGet_Nickname(gStringVar1);
+    if (hp * 4 < maxHp)
+        gSpecialVar_Result = FOLLOWER_TALK_TIRED;
+    else if (friendship == 255)
+        gSpecialVar_Result = FOLLOWER_TALK_DEVOTED;
+    else if (friendship >= 200)
+        gSpecialVar_Result = FOLLOWER_TALK_HAPPY;
+    else if (friendship >= 100)
+        gSpecialVar_Result = FOLLOWER_TALK_STEADY;
+    else if (friendship >= 50)
+        gSpecialVar_Result = FOLLOWER_TALK_SHY;
+    else
+        gSpecialVar_Result = FOLLOWER_TALK_WARY;
 }

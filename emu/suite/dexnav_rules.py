@@ -6,7 +6,8 @@ On Route 1 (Pidgey and Rattata), each rule checked in the emulator:
   shake       the patch's rustle restarts twice a second (its animation back at its first command every 30 frames)
   chain kept  a random encounter of the chain's species keeps the chain
   chain lost  a random encounter of another species drops it to 0
-  fled        running from a DexNav battle of the chain's species keeps the chain
+  fled        running from a DexNav battle of the chain's species breaks the chain (to 0) and leaves the
+              species' search level as it was
 Every wait is bounded. Results: emu/suite/out/<rom>/features/dexnav_rules.txt.
 """
 import os
@@ -33,6 +34,10 @@ class Rules(Catcher):
     def chain(self):
         raw = self.read(self.sb1() + SB1_GUNK_DEXNAV + 386, 3)
         return raw[0] | raw[1] << 8, raw[2]
+
+    def search_level(self, species):
+        # bytes 0-385: National Dex 1-386 (Route 1's Pidgey and Rattata have species id = dex number)
+        return self.read(self.sb1() + SB1_GUNK_DEXNAV + species - 1, 1)[0]
 
     def set_chain(self, species, count):
         sb1 = self.sb1()
@@ -121,7 +126,7 @@ def main():
         r.record("other-species encounter breaks the chain", lost is not None and lost[1] == 0,
                  f"chain after species {lost[0] if lost else None}: {lost[1] if lost else None}")
 
-        # running from a DexNav battle of the chain's species keeps the chain
+        # running from a DexNav battle of the chain's species breaks the chain and raises no search level
         r.set_chain(SPECIES_PIDGEY, 5)
         fled = None
         for _ in range(6):
@@ -133,11 +138,14 @@ def main():
             r.walk_to(x, y)
             g.cmd("wait 60")
             if r.in_battle():
+                level = r.search_level(species)
                 r.run_away()
-                fled = (species, r.chain())
+                fled = (species, r.chain(), level, r.search_level(species))
                 break
-        r.record("fleeing a DexNav battle keeps the chain", fled is not None and fled[1] == (fled[0], 5),
+        r.record("fleeing a DexNav battle breaks the chain", fled is not None and fled[1][1] == 0,
                  f"species {fled[0] if fled else None}, chain after fleeing {fled[1] if fled else None}")
+        r.record("fleeing a DexNav battle raises no search level", fled is not None and fled[2] == fled[3],
+                 f"search level {fled[2] if fled else None} -> {fled[3] if fled else None}")
     except RuntimeError as e:
         r.record("stall", False, str(e))
     finally:

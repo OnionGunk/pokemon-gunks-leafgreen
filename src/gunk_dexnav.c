@@ -373,7 +373,8 @@ bool8 Gunk_DexNavTryStartBattle(void)
 
 // From the end of every wild battle (CB2_EndWildBattle, CB2_EndScriptedWildBattle). The chain: a wild encounter
 // with another species than the chain's breaks it (to 0); one with the same species keeps it, and a DexNav battle
-// of it that is won or caught adds a link. A DexNav battle also raises the species' search level.
+// of it that is won or caught adds a link. A DexNav battle also raises the species' search level, unless the player
+// ran from it (Run, Teleport, a Poke Doll): that breaks the chain and raises nothing.
 void Gunk_DexNavOnBattleEnd(void)
 {
     u16 species = sSearch.species;
@@ -385,7 +386,10 @@ void Gunk_DexNavOnBattleEnd(void)
             SetChain(SPECIES_NONE, 0);
         return;
     }
-    RaiseSearchLevel(species);
+    if (gBattleOutcome == B_OUTCOME_RAN || gBattleOutcome == B_OUTCOME_PLAYER_TELEPORTED)
+        SetChain(SPECIES_NONE, 0);
+    else
+        RaiseSearchLevel(species);
     if (GetChainSpecies() != species)
         SetChain(species, 0);
     if (gBattleOutcome == B_OUTCOME_WON || gBattleOutcome == B_OUTCOME_CAUGHT)

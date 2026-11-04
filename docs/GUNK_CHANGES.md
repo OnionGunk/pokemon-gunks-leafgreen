@@ -125,7 +125,6 @@ out (under a quarter of its HP).
 
 ## Not done yet
 
-- Talking to the follower does nothing (vanilla would read a garbage script; it is skipped).
 - A full hand playthrough: the checks cover the opening, the key-item gifts, each feature, every map's arrival
   against vanilla and every gym, Elite Four and Champion battle through the credits, not every scene in between
   (Silph Co., Pokémon Tower, the Sevii Islands' story).

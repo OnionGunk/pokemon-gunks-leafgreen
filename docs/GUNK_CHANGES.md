@@ -25,7 +25,7 @@ suite), both run after every build, plus `emu/suite/boxes.py` for the PC boxes. 
 | 15 | Move Tutor | Move Maniac (Two Island, for mushrooms), Move Deleter (Fuchsia) | Every Pokémon Center PC has a free MOVE TUTOR row that remembers level-up moves and forgets moves | done | "PC move tutor" |
 | 16 | Faster egg hatching | An egg cycle every 256 steps | Every 128 steps (`src/daycare.c`) | done | `emu/suite/eggs.py`: an egg with 1 cycle left hatches on step 255 (vanilla: 511), a whole Pidgey with its IVs, moves and personality |
 | 17 | More PC boxes | 14 boxes; storage fills its 9 flash sectors | 16 boxes. Boxed Pokémon are packed from 80 to 70 bytes (`Gunk_PackBoxMon`), so they fit the same 9 sectors and both save slots stay. A vanilla LeafGreen save is converted when it loads. See `docs/PC_BOXES_PLAN.md` | done | `emu/suite/boxes.py`: a vanilla save with 420 Pokémon (eggs, Bad Eggs, edge values) converted byte for byte, a save and reload, the summary screen unpacking boxes 1, 7, 14 and 16, all 16 boxes full across a save, the box list wrapping to box 16 |
-| 18 | DexNav | — | Key item (slot 54): lists the map's grass Pokémon; the chosen one hides in rustling grass nearby. Normal wild rolls; the search level and chain set how many are rolled (the best is kept). Search data in SaveBlock1's unused 400 bytes. A search lasts 10 seconds of free walking (then the patch clears with "got away" and the chain is lost); the patch shakes twice a second; a wild encounter of another species breaks the chain, one of the same species keeps it | done | "dexnav", "dexnav search level"; `emu/suite/dexnav_rules.py`: timeout, shake, chain kept, chain lost, fled |
+| 18 | DexNav | — | Key item (slot 54): lists the map's grass Pokémon; the chosen one hides in rustling grass nearby. Normal wild rolls; the search level and chain set how many are rolled (the best is kept). Search data in SaveBlock1's unused 400 bytes. A search lasts 10 seconds of free walking (then the patch clears with "got away" and the chain is lost); the patch shakes twice a second; a wild encounter of another species breaks the chain, one of the same species keeps it; running from a DexNav battle breaks the chain and raises no search level | done | "dexnav", "dexnav search level"; `emu/suite/dexnav_rules.py`: timeout, shake, chain kept, chain lost, fled |
 | 19 | Following Pokémon | — | The lead walks behind the player: all 386 species, shinies in shiny colors. Movement ported from MinimalEffort07/pokefirered; sprites from pokeemerald-expansion. RETURN on the lead's party menu puts it away (flag 0x4AA), WALK brings it back. Its palette goes through the field tint like every NPC's, so the quest log ("Previously on your quest") restores it | done | `league.py` follower colors after 17 quest-log Continues, "follower on/off switch", "follower", "follower and Surf", "follower across a map edge", "follower through a door", "follower and saving", "follower palette after a menu", "story opening" |
 | 20 | Quick Run and Quick Ball | RUN and BAG in the action menu | In the battle action menu R runs (as RUN), and L throws the ball shown bottom left (icon and "L ×NN"), through the bag's own checks; L held with Left/Right picks another ball. Starts on the last ball thrown (VAR_GUNK_LAST_BALL, a spare var: no save layout change). Only in wild battles where a ball can be thrown; L and R don't open Help there. After pokeemerald-expansion's B_LAST_USED_BALL and B_LAST_USED_BALL_CYCLE (`src/gunk_quick_ball.c`) | done | `emu/suite/quickball.py`: widget, cycle (icon checked), throw, catch (PKHeX legal, in a Great Ball), last ball, quick run, Help closed, L=A, trainer battle (no widget, R refused), no balls |
 
@@ -110,6 +110,21 @@ FireRed's fix for the half-second stall on reaching the patch (e7a31fa48, findin
 - `suite.py` 35/35, `features.py` 29/29, `boxes.py` 16/16, `dexnav_rules.py` 5/5. The story sweep and milestones
   above ran on `4e1aa569`, before this change, which touches only the DexNav's rolls.
 
+## Running from a DexNav battle (2026-11-03, build `b2d2305e`)
+
+The user's rule, from Gunk's FireRed (a50e8b12a): running from a DexNav battle (or teleporting out) breaks the chain
+and raises no search level. `dexnav_rules.py` 6/6 (fleeing: chain 0, search level 0 -> 0), `dexnav_peek.py` 12/12
+with its 13 catches and their box copies legal in PKHeX, `suite.py` 35/35, `features.py` 29/29, `boxes.py` 16/16,
+`quickball.py` 10/10.
+
+## v1.0 release build (2026-11-04, build `c387a24e`)
+
+The user's title logo (title_art.py fit and import, 180 tiles of 256), on top of everything above. Rerun on this
+build: the story sweep (256 triggers: 149 finish on both, 0 fail, 0 end differently from vanilla; the same 5 setup
+cases), milestones 11/11, `suite.py` 35/35, `features.py` 29/29, `boxes.py` 16/16, `dexnav_rules.py` 6/6,
+`quickball.py` 10/10, `dexnav_peek.py` 12/12 with its catches and their box copies legal in PKHeX (26/26). The
+patch `pokemon-gunks-leafgreen-v1.0.bps` (1,979,078 bytes) makes this ROM from the retail one and refuses others.
+
 ## v1.2-dev: talking to the follower (2026-11-03, build `933aecc7`)
 
 FireRed's follower talk (736be3da9): A on the follower gives one of six lines, by its friendship or when it is worn
@@ -122,6 +137,14 @@ out (under a quarter of its HP).
   setup (2 unfinished in vanilla too, Celio and Lostelle's father not set up in vanilla).
 - `suite.py` 35/35, `features.py` 29/29, `boxes.py` 16/16, `dexnav_rules.py` 5/5, `quickball.py` 10/10,
   `dexnav_peek.py` 12/12 with its catches legal in PKHeX.
+
+## v1.2 release build (2026-11-04, build `7d32e73e`)
+
+v1.0 (with the title logo and the flee rule) plus follower talk. Rerun on this build: the talk sweep (144 people:
+122 finish on both, 0 fail, 0 end differently from vanilla; the same 4 setup cases), `follower_talk.py` 4/4,
+`follower_full_slots.py` 4/4, `suite.py` 35/35, `features.py` 29/29, `boxes.py` 16/16, `dexnav_rules.py` 6/6,
+`quickball.py` 10/10. The patch `pokemon-gunks-leafgreen-v1.2.bps` (1,980,421 bytes) makes this ROM from the
+retail one and refuses others, a v1.0 ROM included.
 
 ## Not done yet
 

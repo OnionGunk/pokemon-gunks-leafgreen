@@ -6,8 +6,9 @@ difficulty kept as they are.
 - **DexNav**: a key item that lists the grass Pokémon of the place you're in. Pick one and it hides in a patch of
   rustling grass nearby that shakes twice a second; reach it within 10 seconds or it gets away. Search levels and
   chains raise the odds of good IVs and shinies: a chain grows with each DexNav win or catch, is kept by battles
-  with the same species, and breaks when a search times out or you meet another species. Every Pokémon it finds is
-  a normal, legal wild roll for that spot. Even a long chain's search doesn't stall the game when you reach the
+  with the same species, and breaks when a search times out, you run from a DexNav battle, or you meet another
+  species. Running also doesn't raise the search level. Every Pokémon it finds is a normal, legal wild roll for that
+  spot. Even a long chain's search doesn't stall the game when you reach the
   patch.
 - **Following Pokémon**: your lead Pokémon walks behind you, any of the 386 species, shinies in their shiny colors.
   Walk into it to swap places. RETURN in its party menu puts it away, WALK brings it back.
@@ -37,7 +38,7 @@ IPS, or `py tools/patch/bps.py apply`. Patch the clean retail ROM. The patcher r
 ROM should be:
 
 ```
-sha1: TBD (set when the new title logo is in; the draft build without it is 50fcd11ab7de22c7bb24dc6882fdcdf31d4bdbab)
+sha1: c387a24e78eea03e7b0f7fb81abecd75da207c2f
 ```
 
 ## Notes

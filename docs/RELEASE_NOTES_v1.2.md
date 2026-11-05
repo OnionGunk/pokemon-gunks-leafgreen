@@ -18,7 +18,7 @@ IPS, or `py tools/patch/bps.py apply`. Patch the clean retail ROM, not your v1.0
 ROM. The patched ROM should be:
 
 ```
-sha1: TBD (set at release; the draft build is e6ec0d0ec78d7a833e34b677a56c460fc6d73f7b)
+sha1: 7d32e73e109567312e64162ec71c84f9ab036c68
 ```
 
 ## Notes

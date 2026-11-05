@@ -38,7 +38,7 @@ IPS, or `py tools/patch/bps.py apply`. Patch the clean retail ROM. The patcher r
 ROM should be:
 
 ```
-sha1: TBD (set when the new title logo is in; the draft build without it is b2d2305ef41a4005dbb9fc213d3a05cf08aee1c0)
+sha1: c387a24e78eea03e7b0f7fb81abecd75da207c2f
 ```
 
 ## Notes

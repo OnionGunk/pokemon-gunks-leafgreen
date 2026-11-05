@@ -117,6 +117,14 @@ and raises no search level. `dexnav_rules.py` 6/6 (fleeing: chain 0, search leve
 with its 13 catches and their box copies legal in PKHeX, `suite.py` 35/35, `features.py` 29/29, `boxes.py` 16/16,
 `quickball.py` 10/10.
 
+## v1.0 release build (2026-11-04, build `c387a24e`)
+
+The user's title logo (title_art.py fit and import, 180 tiles of 256), on top of everything above. Rerun on this
+build: the story sweep (256 triggers: 149 finish on both, 0 fail, 0 end differently from vanilla; the same 5 setup
+cases), milestones 11/11, `suite.py` 35/35, `features.py` 29/29, `boxes.py` 16/16, `dexnav_rules.py` 6/6,
+`quickball.py` 10/10, `dexnav_peek.py` 12/12 with its catches and their box copies legal in PKHeX (26/26). The
+patch `pokemon-gunks-leafgreen-v1.0.bps` (1,979,078 bytes) makes this ROM from the retail one and refuses others.
+
 ## Not done yet
 
 - Talking to the follower does nothing (vanilla would read a garbage script; it is skipped).

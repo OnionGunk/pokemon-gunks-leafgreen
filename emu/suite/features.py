@@ -630,8 +630,8 @@ class Features:
         return None
 
     def check_follower_surf(self):
-        """Lapras (no Surf; HM03 in the bag) surfs off Pallet Town's shore: the follower stays on land, and
-        is back beside the player after landing."""
+        """Lapras (no Surf; HM03 in the bag) surfs off Pallet Town's shore: the follower goes back into its ball
+        (no follower object while surfing), and comes back out beside the player after landing."""
         g = self.g
         g.cmd("press Down 2", "wait 20", "press A 4", "wait 60")
         g.wait_field(press="A", max_steps=60, settle=4)
@@ -644,9 +644,30 @@ class Features:
         landed = self.pos()
         follower_after = self.follower_pos()
         self.shot("surf_landed.png")
-        ok = surfing and follower_while is not None and follower_while[1] <= 16 and landed[1] <= 16             and follower_after is not None and abs(follower_after[0] - landed[0]) + abs(follower_after[1] - landed[1]) <= 3
+        ok = surfing and follower_while is None and landed[1] <= 16             and follower_after is not None and abs(follower_after[0] - landed[0]) + abs(follower_after[1] - landed[1]) <= 3
         self.record("follower and Surf", ok, f"surfing {surfing != 0} at {on_water}, follower at {follower_while}; "
                     f"landed at {landed}, follower at {follower_after}")
+
+    def check_follower_scene(self):
+        """Viridian City's old man blocks the road north (before the parcel): his scene walks the player back down a
+        tile. The follower goes back into its ball for the scene and comes out again once it's over."""
+        g = self.g
+        g.cmd("press Up 16", "wait 30", "press Up 16", "wait 30")
+        gone, polls = False, 0
+        for _ in range(120):  # the old man's message, then the walk back down
+            if self.follower_pos() is None:
+                gone = True
+            if gone and g.field_ready():
+                break
+            g.cmd("press A 2" if polls % 4 == 0 else "wait 2", "wait 2")
+            polls += 1
+        self.shot("scene_during.png")
+        g.cmd("wait 60")
+        after, pos = self.follower_pos(), self.pos()
+        self.shot("scene_after.png")
+        ok = gone and after is not None and abs(after[0] - pos[0]) + abs(after[1] - pos[1]) <= 2
+        self.record("follower in a scene", ok, f"gone during the scene {gone} ({polls} polls); player {pos}, "
+                    f"follower after {after}")
 
     def check_follower_map_edge(self):
         """Walk north out of Pallet Town into Route 1: the follower crosses the map edge behind the player."""
@@ -798,6 +819,9 @@ def main():
                    flags=[FLAG_SYS_POKEMON_GET, FLAG_BADGE05_GET], name="surf")
         f.warp(3, 0, 8, 16, name="surf_warp")
         f.check_follower_surf()
+        f.warp(3, 1, 22, 13, name="scene_warp")
+        f.check_follower_scene()
+        f.warp(3, 0, 8, 16, name="surf_warp_back")
         f.check_follower_map_edge()
         f.check_follower_save_cycle()
         f.warp(3, 0, 16, 15, name="door_warp")

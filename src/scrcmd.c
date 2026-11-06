@@ -38,6 +38,7 @@
 #include "constants/maps.h"
 #include "constants/sound.h"
 #include "sloopsvc.h"
+#include "gunk_follower.h"
 
 extern u16 (*const gSpecials[])(void);
 extern u16 (*const gSpecialsEnd[])(void);
@@ -986,6 +987,7 @@ bool8 ScrCmd_applymovement(struct ScriptContext * ctx)
     const void *movementScript = (const void *)ScriptReadWord(ctx);
 
     ScriptMovement_StartObjectMovementScript(localId, gSaveBlock1Ptr->location.mapNum, gSaveBlock1Ptr->location.mapGroup, movementScript);
+    Gunk_FollowerOnScriptMovement(localId, movementScript);
     sMovingNpcId = localId;
     return FALSE;
 }
@@ -998,6 +1000,7 @@ bool8 ScrCmd_applymovementat(struct ScriptContext * ctx)
     u8 mapNum = ScriptReadByte(ctx);
 
     ScriptMovement_StartObjectMovementScript(localId, mapNum, mapGroup, movementScript);
+    Gunk_FollowerOnScriptMovement(localId, movementScript);
     sMovingNpcId = localId;
     return FALSE;
 }

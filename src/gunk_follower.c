@@ -36,8 +36,27 @@
  * step tries the other direction that also leads toward the player, or
  * waits for the next frame; a ledge in the step's own direction is jumped,
  * as the player does. So the follower never walks through walls, onto
- * ledges from the side, onto water or onto other characters. While the
- * player surfs, it waits on the shore and rejoins them when they land.
+ * ledges from the side, onto water or onto other characters.
+ *
+ * BACK IN THE BALL (Gunk's, as in Platinum):
+ * The follower goes back into its ball, and comes out again later, when
+ *   - SURFING: the player surfs. It never swims; it comes back once the
+ *     player is on land and the hop ashore is over.
+ *   - SCENES: a script moves a character a step or more (applymovement with
+ *     a walk, run, jump, slide or glide in it: ScrCmd_applymovement calls
+ *     Gunk_FollowerOnScriptMovement). Scenes walk the player and NPCs over
+ *     tiles the follower may stand on, so it gets out of the way for the
+ *     whole scene and comes back once the script has ended. A script that
+ *     only turns characters, shows an emote or talks leaves it out.
+ * Going back: the ball sound (SE_BALL_TRADE), then it flickers for
+ * RECALL_FRAMES frames and is despawned. It stays in the ball for at least
+ * MIN_BALL_FRAMES frames, so even a one-step scene reads as going back
+ * rather than a flicker. Coming out: it spawns on a walkable tile next to
+ * the player as at any spawn, with SE_BALL_OPEN, never in the middle of a
+ * player's step. A map loaded while it's in its ball (a warp
+ * during a scene, a save loaded at sea) spawns no follower until the
+ * reason is over. The follower state is untouched, so it is the same
+ * Pokemon that comes back.
  *
  * SWAPPING PLACES (issue #99):
  * The follower is an object like any NPC, so the player's step code finds
@@ -159,7 +178,10 @@
 #include "pokemon.h"
 #include "string_util.h"
 #include "random.h"
+#include "script.h"
+#include "sound.h"
 #include "sprite.h"
+#include "constants/songs.h"
 
 /*
  * Distance thresholds for follower behavior (Manhattan distance in tiles).
@@ -231,7 +253,16 @@ static EWRAM_DATA struct {
      */
     u32 pid;                /* Personality value of the walking Pokemon */
     u32 otId;               /* Original trainer ID of the walking Pokemon */
+    u8 inBall;              /* Gunk's: IN_BALL_* reasons it's in its ball now (see BACK IN THE BALL) */
+    u8 recallFrames;        /* Gunk's: frames of flickering left before it's despawned */
+    u8 ballFrames;          /* Gunk's: frames it has been in its ball, up to MIN_BALL_FRAMES */
+    bool8 outOfBallSound;   /* Gunk's: it went back into its ball; play SE_BALL_OPEN when it comes out */
 } sFollower = {0};
+
+#define IN_BALL_SURF    (1 << 0)
+#define IN_BALL_SCENE   (1 << 1)
+#define RECALL_FRAMES   8
+#define MIN_BALL_FRAMES 30
 
 /* Gunk's: every species has a follower sprite (graphics/gunk_followers) */
 static u8 GetFollowerGraphicsId(u16 species)
@@ -771,6 +802,12 @@ void SpawnFollowerSprite(void)
     if (sFollower.spriteSpawned)
         return;
 
+    /* Gunk's: not while it's in its ball (see BACK IN THE BALL) */
+    if (gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_SURFING)
+        sFollower.inBall |= IN_BALL_SURF;
+    if (sFollower.inBall)
+        return;
+
     playerObj = &gObjectEvents[gPlayerAvatar.objectEventId];
 
     /*
@@ -975,6 +1012,96 @@ static bool8 TryFollowerSideStep(struct ObjectEvent *followerObj, struct ObjectE
  * walk animation cycle: sprite frame animation, per-frame position
  * interpolation, and destination coordinate update on completion.
  */
+/*
+ * Gunk's: does this movement action take its object to another tile (a walk,
+ * run, jump, slide, glide or ride)? Turns, delays, emotes, walking or
+ * jumping in place and the like don't.
+ */
+static bool8 IsStepMovementAction(u8 action)
+{
+    return (action >= MOVEMENT_ACTION_WALK_SLOWER_DOWN && action <= MOVEMENT_ACTION_JUMP_2_RIGHT)
+        || (action >= MOVEMENT_ACTION_WALK_FAST_DOWN && action <= MOVEMENT_ACTION_WALK_FAST_RIGHT)
+        || (action >= MOVEMENT_ACTION_RIDE_WATER_CURRENT_DOWN && action <= MOVEMENT_ACTION_PLAYER_RUN_RIGHT_SLOW)
+        || (action >= MOVEMENT_ACTION_JUMP_SPECIAL_DOWN && action <= MOVEMENT_ACTION_JUMP_SPECIAL_RIGHT)
+        || (action >= MOVEMENT_ACTION_JUMP_DOWN && action <= MOVEMENT_ACTION_JUMP_RIGHT)
+        || action == MOVEMENT_ACTION_WALK_DOWN_START_AFFINE || action == MOVEMENT_ACTION_WALK_DOWN_AFFINE
+        || (action >= MOVEMENT_ACTION_ACRO_WHEELIE_HOP_DOWN && action <= MOVEMENT_ACTION_ACRO_WHEELIE_JUMP_RIGHT)
+        || (action >= MOVEMENT_ACTION_ACRO_POP_WHEELIE_MOVE_DOWN && action <= MOVEMENT_ACTION_ACRO_WHEELIE_MOVE_RIGHT)
+        || (action >= MOVEMENT_ACTION_WALK_SLOWEST_DOWN && action <= MOVEMENT_ACTION_WALK_SLOWEST_RIGHT)
+        || (action >= MOVEMENT_ACTION_GLIDE_DOWN && action <= MOVEMENT_ACTION_GLIDE_RIGHT)
+        || (action >= MOVEMENT_ACTION_JUMP_SPECIAL_WITH_EFFECT_DOWN
+         && action <= MOVEMENT_ACTION_JUMP_SPECIAL_WITH_EFFECT_RIGHT);
+}
+
+/*
+ * Gunk's: the follower's ball (see BACK IN THE BALL). Brings the reasons up
+ * to date, then flickers and despawns a follower that has to go back.
+ * Returns TRUE while it's in its ball or going back, when the rest of the
+ * frame's update must not move or spawn it.
+ */
+static bool8 UpdateFollowerBall(void)
+{
+    struct ObjectEvent *followerObj;
+
+    if (gPlayerAvatar.flags & PLAYER_AVATAR_FLAG_SURFING)
+        sFollower.inBall |= IN_BALL_SURF;
+    else
+        sFollower.inBall &= ~IN_BALL_SURF;
+    if (!ScriptContext_IsEnabled())
+        sFollower.inBall &= ~IN_BALL_SCENE;
+
+    if (sFollower.recallFrames != 0)
+    {
+        followerObj = GetFollowerObjectEvent();
+        if (followerObj != NULL && followerObj->spriteId < MAX_SPRITES)
+            gSprites[followerObj->spriteId].invisible = (sFollower.recallFrames / 2) & 1;
+        if (--sFollower.recallFrames == 0)
+            DespawnFollowerSprite();
+        return TRUE;
+    }
+    if (sFollower.inBall == 0)
+    {
+        if (!sFollower.outOfBallSound || sFollower.ballFrames >= MIN_BALL_FRAMES)
+            return FALSE;
+        sFollower.ballFrames++;
+        return TRUE;
+    }
+    if (sFollower.spriteSpawned)
+    {
+        PlaySE(SE_BALL_TRADE);
+        sFollower.recallFrames = RECALL_FRAMES;
+        sFollower.outOfBallSound = TRUE;
+        sFollower.ballFrames = 0;
+    }
+    else if (sFollower.ballFrames < MIN_BALL_FRAMES)
+    {
+        sFollower.ballFrames++;
+    }
+    return TRUE;
+}
+
+/*
+ * Gunk's: ScrCmd_applymovement and ScrCmd_applymovementat, on every object
+ * movement a script starts. A movement that moves someone a step or more
+ * puts the follower in its ball until the script ends (see BACK IN THE
+ * BALL). The follower's own movements (its talk reactions) don't.
+ */
+void Gunk_FollowerOnScriptMovement(u16 localId, const u8 *movementScript)
+{
+    const u8 *action;
+
+    if (localId == LOCALID_FOLLOWER || !sFollower.spriteSpawned)
+        return;
+    for (action = movementScript; *action != MOVEMENT_ACTION_STEP_END; action++)
+    {
+        if (IsStepMovementAction(*action))
+        {
+            sFollower.inBall |= IN_BALL_SCENE;
+            return;
+        }
+    }
+}
+
 void UpdateFollowerPokemon(void)
 {
     struct ObjectEvent *playerObj;
@@ -987,9 +1114,20 @@ void UpdateFollowerPokemon(void)
      */
     if (!SyncFollowerWithLead())
         return;
+
+    /* Gunk's: back into the ball and out again (see BACK IN THE BALL) */
+    if (UpdateFollowerBall())
+        return;
     if (!sFollower.spriteSpawned)
     {
+        if (sFollower.outOfBallSound && gPlayerAvatar.tileTransitionState == T_TILE_TRANSITION)
+            return;
         SpawnFollowerSprite();
+        if (sFollower.spriteSpawned && sFollower.outOfBallSound)
+        {
+            sFollower.outOfBallSound = FALSE;
+            PlaySE(SE_BALL_OPEN);
+        }
         return;
     }
 

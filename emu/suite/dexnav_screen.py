@@ -38,6 +38,10 @@ SPECIES_MAGIKARP = 129  # seen too: on the OTHER tab (Old Rod), A gives its hint
 LIST_MAX = 12 + 5 + 5 + 10
 NUM_TABS = 3
 AREA_TAB = {0: 0, 1: 1, 2: 2, 3: 2}  # the list's WILD_AREA_* (land, water, rocks, fishing) to its tab
+MAP_ROCK_TUNNEL_B1F = (1, 82)
+ROCK_TUNNEL_STAND = (38, 28)  # its first warp's tile
+SPECIES_GEODUDE = 74
+METHOD_ROCK_SMASH = 5  # DEXNAV_METHOD_ROCK_SMASH
 CAUGHT = {16}  # Pidgey
 COL_BALL = 14  # DXCOL_BALL (src/data/gunk_dexnav_skin.h)
 MAX_SPRITES = 64
@@ -354,6 +358,24 @@ def main():
                  battle and enemy_pid == sr["pid"] and enemy_level == sr["level"] and t.hud_shown() == 0,
                  f"bar pid {sr['pid']:#x} Lv{sr['level']}, battle pid {enemy_pid:#x} Lv{enemy_level}, "
                  f"bar shown {t.hud_shown()}")
+
+        # Rock Smash: in Rock Tunnel B1F the OTHER tab has Geodude, found by Rock Smash
+        t.new_game(mons=[(SPECIES["PIKACHU"], 100)], items=[(ITEM["DEXNAV"], 1)],
+                   flags=[FLAG_SYS_POKEMON_GET, FLAG_SYS_POKEDEX_GET, FLAG_GUNK_ENDLESS_REPEL_ON],
+                   name="dexnav_screen_rocks")
+        t.warp(*MAP_ROCK_TUNNEL_B1F, *ROCK_TUNNEL_STAND, name="dexnav_screen_rock_tunnel")
+        g.wait_field(press="B", max_steps=60)
+        t.set_dex(SPECIES_GEODUDE, False)
+        g.cmd(f"write16 {t.sb1() + SB1_REGISTERED_ITEM} {ITEM['DEXNAV']}")
+        rs = t.open_screen("dexnav_screen_rock_tunnel_open.png")
+        rows = [i for i, (sp, area) in enumerate(t.list()) if sp == SPECIES_GEODUDE and area == 2]
+        moved = rs is not None and bool(rows) and t.goto_cell(rows[0], 2)
+        t.shot("dexnav_screen_rock_smash.png")
+        method = g.u8(g.a("sListMethod") + rows[0]) if rows else None
+        t.record("OTHER: Rock Smash Pokemon found by Rock Smash", moved and method == METHOD_ROCK_SMASH,
+                 f"screen {rs is not None}, Geodude rows {rows}, cursor there {moved}, method {method}")
+        g.cmd("press B 4")
+        t.back_in_field()
     except RuntimeError as e:
         t.record("stall", False, str(e))
     finally:

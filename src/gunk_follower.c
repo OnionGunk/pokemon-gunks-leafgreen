@@ -1348,6 +1348,7 @@ void StartFollowerMakeWayStep(u8 stepDirection)
  *   FOLLOWER_TALK_STEADY    100 to 199
  *   FOLLOWER_TALK_HAPPY     200 to 254
  *   FOLLOWER_TALK_DEVOTED   255
+ * and VAR_0x8004 = its species (for its cry in the reaction).
  * Reads only: the follower and the party are left as they are.
  */
 void Gunk_FollowerTalkPrepare(void)
@@ -1358,6 +1359,7 @@ void Gunk_FollowerTalkPrepare(void)
 
     GetMonData(mon, MON_DATA_NICKNAME, gStringVar1);
     StringGet_Nickname(gStringVar1);
+    gSpecialVar_0x8004 = GetMonData(mon, MON_DATA_SPECIES);
     if (hp * 4 < maxHp)
         gSpecialVar_Result = FOLLOWER_TALK_TIRED;
     else if (friendship == 255)

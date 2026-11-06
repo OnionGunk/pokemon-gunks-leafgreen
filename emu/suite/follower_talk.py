@@ -3,7 +3,10 @@
 On Route 1 with a Bulbasaur following: the player turns to it and presses A. Each case must start the follower's
 talk script with its nickname in STR_VAR_1 and the line for its state in VAR_RESULT (Gunk_FollowerTalkPrepare),
 then give the field back after the message, with the follower still following:
-  wary (friendship 10), happy (220), devoted (255), tired (friendship 255 but under a quarter of its HP)
+  wary (friendship 10), shy (70), steady (150), happy (220), devoted (255), tired (friendship 255 but under a
+  quarter of its HP)
+Each mood has a reaction before the line (an emote over the follower, its cry, or both): VAR_0x8004 must hold its
+species for the cry, and a screenshot is taken during the reaction.
 Every wait is bounded. Results: emu/suite/out/<rom>/features/follower_talk.txt.
 """
 import os
@@ -17,8 +20,8 @@ from features import FLAG_SYS_POKEMON_GET, MAP_ROUTE1, SPECIES, Features  # noqa
 from lib import SUBSTRUCT_ORDERS  # noqa: E402
 
 TIRED, WARY, SHY, STEADY, HAPPY, DEVOTED = range(6)
-CASES = [("wary", 10, False, WARY), ("happy", 220, False, HAPPY), ("devoted", 255, False, DEVOTED),
-         ("tired", 255, True, TIRED)]
+CASES = [("wary", 10, False, WARY), ("shy", 70, False, SHY), ("steady", 150, False, STEADY),
+         ("happy", 220, False, HAPPY), ("devoted", 255, False, DEVOTED), ("tired", 255, True, TIRED)]
 VAR_RESULT_ADDR = "gSpecialVar_Result"
 BULBASAUR_NAME = bytes([0xBC, 0xCF, 0xC6, 0xBC, 0xBB, 0xCD, 0xBB, 0xCF, 0xCC])  # BULBASAUR
 
@@ -75,9 +78,12 @@ def main():
             t.edit_lead(friendship=friendship, hp=max(1, maxhp // 5) if tired else maxhp)
             g.cmd(f"write16 {g.a(VAR_RESULT_ADDR)} 99")
             faced = t.face_follower()
-            g.cmd("press A 4", "wait 40")
+            g.cmd("press A 4", "wait 14")
+            t.shot(f"talk_{name}_reaction.png")
+            g.cmd("wait 26")
             started = not g.field_ready()
             line = struct.unpack("<H", bytes.fromhex(g.cmd(f"read {g.a(VAR_RESULT_ADDR)} 2")[0].replace(" ", "")))[0]
+            species = struct.unpack("<H", bytes.fromhex(g.cmd(f"read {g.a('gSpecialVar_0x8004')} 2")[0].replace(" ", "")))[0]
             nick = bytes.fromhex(g.cmd(f"read {g.a('gStringVar1')} 9")[0].replace(" ", ""))
             t.shot(f"talk_{name}.png")
             back = g.wait_field(press="A", max_steps=60)
@@ -90,9 +96,10 @@ def main():
             # the player went up and the follower came along behind, in line, at most two tiles back (after a swap it
             # trails a tile further until the next step, as it does anywhere)
             followed = pafter[1] < pbefore[1] and after != before and after[0] == pafter[0]                 and 1 <= after[1] - pafter[1] <= 2
-            t.record(f"follower talk: {name}", faced and started and line == want and nick == BULBASAUR_NAME and back
+            t.record(f"follower talk: {name}", faced and started and line == want and nick == BULBASAUR_NAME
+                     and species == SPECIES["BULBASAUR"] and back
                      and followed,
-                     f"faced {faced}, script {started}, line {line} (want {want}), name {nick.hex()}, field back {back}, "
+                     f"faced {faced}, script {started}, line {line} (want {want}), name {nick.hex()}, species {species}, field back {back}, "
                      f"player {pbefore} -> {pafter}, follower {before} -> {after}")
     except RuntimeError as e:
         t.record("stall", False, str(e))

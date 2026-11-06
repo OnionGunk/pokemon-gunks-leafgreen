@@ -1,5 +1,6 @@
 @ Gunk's: A on the following Pokemon (src/field_control_avatar.c sends it here; src/gunk_follower.c picks the line).
 @ VAR_RESULT from Gunk_FollowerTalkPrepare: 0 tired, 1 wary, 2 shy, 3 steady, 4 happy, 5 devoted (FOLLOWER_TALK_*).
+@ VAR_0x8004 = its species, for its cry. Each mood gets a reaction: an emote over it, its cry, or both.
 EventScript_GunkFollowerTalk::
 	lock
 	faceplayer
@@ -10,34 +11,57 @@ EventScript_GunkFollowerTalk::
 	case 2, EventScript_GunkFollowerShy
 	case 3, EventScript_GunkFollowerSteady
 	case 4, EventScript_GunkFollowerHappy
+	applymovement LOCALID_FOLLOWER, Movement_GunkFollowerSmile
+	playmoncry VAR_0x8004, CRY_MODE_NORMAL
+	waitmovement 0
+	waitmoncry
+	applymovement LOCALID_FOLLOWER, Movement_GunkFollowerSmile
+	waitmovement 0
 	msgbox Text_GunkFollowerDevoted
 	release
 	end
 
 EventScript_GunkFollowerTired::
+	playmoncry VAR_0x8004, CRY_MODE_FAINT
+	waitmoncry
 	msgbox Text_GunkFollowerTired
 	release
 	end
 
 EventScript_GunkFollowerWary::
+	playse SE_PIN
+	applymovement LOCALID_FOLLOWER, Common_Movement_ExclamationMark
+	waitmovement 0
 	msgbox Text_GunkFollowerWary
 	release
 	end
 
 EventScript_GunkFollowerShy::
+	applymovement LOCALID_FOLLOWER, Common_Movement_QuestionMark
+	waitmovement 0
 	msgbox Text_GunkFollowerShy
 	release
 	end
 
 EventScript_GunkFollowerSteady::
+	playmoncry VAR_0x8004, CRY_MODE_NORMAL
+	waitmoncry
 	msgbox Text_GunkFollowerSteady
 	release
 	end
 
 EventScript_GunkFollowerHappy::
+	applymovement LOCALID_FOLLOWER, Movement_GunkFollowerSmile
+	playmoncry VAR_0x8004, CRY_MODE_NORMAL
+	waitmovement 0
+	waitmoncry
 	msgbox Text_GunkFollowerHappy
 	release
 	end
+
+Movement_GunkFollowerSmile:
+	emote_smile
+	step_end
 
 Text_GunkFollowerTired::
 	.string "{STR_VAR_1} is worn out.\n"

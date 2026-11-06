@@ -1351,6 +1351,7 @@ static void InitOverworldBgs(void)
     SetBgTilemapBuffer(2, gBGTilemapBuffers1);
     SetBgTilemapBuffer(3, gBGTilemapBuffers3);
     InitStandardTextBoxWindows();
+    Gunk_DexNavHudReset(); // Gunk's: the DexNav search bar's window went with the old ones
     InitTextBoxGfxAndPrinters();
     InitFieldMessageBox();
 }
@@ -1369,6 +1370,7 @@ static void InitOverworldBgs_NoResetHeap(void)
     SetBgTilemapBuffer(2, gBGTilemapBuffers1);
     SetBgTilemapBuffer(3, gBGTilemapBuffers3);
     InitStandardTextBoxWindows();
+    Gunk_DexNavHudReset(); // Gunk's: the DexNav search bar's window went with the old ones
     InitTextBoxGfxAndPrinters();
     InitFieldMessageBox();
 }

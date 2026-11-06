@@ -41,7 +41,6 @@
 #include "constants/menu.h"
 #include "constants/event_objects.h"
 #include "constants/metatile_labels.h"
-#include "gunk_dexnav.h"
 
 static EWRAM_DATA u8 sElevatorCurrentFloorWindowId = 0;
 static EWRAM_DATA u16 sElevatorScroll = 0;
@@ -1246,16 +1245,6 @@ void ListMenu(void)
         task->data[6] = 0;
         task->data[15] = taskId;
         break;
-    case LISTMENU_GUNK_DEXNAV:
-        task->data[1] = Gunk_DexNavListCount();
-        task->data[0] = task->data[1] < 6 ? task->data[1] : 6;
-        task->data[2] = 1;
-        task->data[3] = 1;
-        task->data[4] = 10;
-        task->data[5] = task->data[0] * 2;
-        task->data[6] = 0;
-        task->data[15] = taskId;
-        break;
     case 99:
         break;
     default:
@@ -1357,10 +1346,7 @@ static void Task_CreateScriptListMenu(u8 taskId)
     mwidth = 0;
     for (i = 0; i < task->data[1]; i++)
     {
-        if (gSpecialVar_0x8004 == LISTMENU_GUNK_DEXNAV)
-            sListMenuItems[i].label = Gunk_DexNavListLabel(i);
-        else
-            sListMenuItems[i].label = sListMenuLabels[gSpecialVar_0x8004][i];
+        sListMenuItems[i].label = sListMenuLabels[gSpecialVar_0x8004][i];
         sListMenuItems[i].index = i;
         width = GetStringWidth(FONT_NORMAL, sListMenuItems[i].label, 0);
         if (width > mwidth)

@@ -255,14 +255,6 @@ u8 GetUnownLetterByPersonalityLoByte(u32 personality)
     return GET_UNOWN_LETTER(personality);
 }
 
-enum
-{
-    WILD_AREA_LAND,
-    WILD_AREA_WATER,
-    WILD_AREA_ROCKS,
-    WILD_AREA_FISHING,
-};
-
 #define WILD_CHECK_REPEL    0x1
 #define WILD_CHECK_KEEN_EYE 0x2
 
@@ -573,75 +565,73 @@ u16 GetLocalWaterMon(void)
     return SPECIES_NONE;
 }
 
-// Gunk's DexNav (src/gunk_dexnav.c): the current map's grass Pokemon, or NULL
-const struct WildPokemonInfo *Gunk_GetLandMonsInfo(void)
+// Gunk's DexNav (src/gunk_dexnav.c): the current map's grass (WILD_AREA_LAND) or surfing (WILD_AREA_WATER) Pokemon,
+// or NULL
+const struct WildPokemonInfo *Gunk_GetWildMonsInfo(u8 area)
 {
     u16 headerId = GetCurrentMapWildMonHeaderId();
 
     if (headerId == HEADER_NONE)
         return NULL;
+    if (area == WILD_AREA_WATER)
+        return gWildMonHeaders[headerId].waterMonsInfo;
     return gWildMonHeaders[headerId].landMonsInfo;
 }
 
-// Gunk's DexNav: one normal wild roll restricted to <species>. The slot comes from the usual slot odds (redrawn
-// until it holds <species>), then its level and the Pokemon are made exactly as for a random encounter.
-bool8 Gunk_GenerateLandMonOfSpecies(u16 species)
+// The slot from the area's usual slot odds, redrawn until it holds <species> (after 100 draws, its first slot)
+static bool8 Gunk_ChooseSlotOfSpecies(const struct WildPokemonInfo *info, u8 area, u16 species, u8 *slotOut)
 {
-    const struct WildPokemonInfo *info = Gunk_GetLandMonsInfo();
-    u8 slot, tries;
+    u8 slot, tries, count = area == WILD_AREA_WATER ? WATER_WILD_COUNT : LAND_WILD_COUNT;
 
     if (info == NULL)
         return FALSE;
     for (tries = 0; tries < 100; tries++)
     {
-        slot = ChooseWildMonIndex_Land();
+        slot = area == WILD_AREA_WATER ? ChooseWildMonIndex_WaterRock() : ChooseWildMonIndex_Land();
         if (info->wildPokemon[slot].species == species)
             break;
     }
     if (tries == 100)
     {
-        for (slot = 0; slot < LAND_WILD_COUNT; slot++)
+        for (slot = 0; slot < count; slot++)
         {
             if (info->wildPokemon[slot].species == species)
                 break;
         }
-        if (slot == LAND_WILD_COUNT)
+        if (slot == count)
             return FALSE;
     }
+    *slotOut = slot;
+    return TRUE;
+}
+
+// Gunk's DexNav: one normal wild roll of the area restricted to <species>. The slot comes from the usual slot odds
+// (redrawn until it holds <species>), then its level and the Pokemon are made exactly as for a random encounter.
+bool8 Gunk_GenerateWildMonOfSpecies(u16 species, u8 area)
+{
+    const struct WildPokemonInfo *info = Gunk_GetWildMonsInfo(area);
+    u8 slot;
+
+    if (!Gunk_ChooseSlotOfSpecies(info, area, species, &slot))
+        return FALSE;
     GenerateWildMon(species, ChooseWildMonLevel(&info->wildPokemon[slot]), slot);
     return TRUE;
 }
 
-// Gunk's DexNav: the random numbers Gunk_GenerateLandMonOfSpecies would draw, drawn in the same order (the slot
+// Gunk's DexNav: the random numbers Gunk_GenerateWildMonOfSpecies would draw, drawn in the same order (the slot
 // rerolls, the level, the nature, the personality until it has that nature, or for Unown until it has the chamber's
 // letter, then the two IV words), without making the Pokemon. With the RNG put back where it was, the real call
-// makes exactly the Pokemon this saw. *personality and *ivTotal (the six IVs added up) describe it.
-bool8 Gunk_PeekLandMonOfSpecies(u16 species, u32 *personality, u8 *ivTotal)
+// makes exactly the Pokemon this saw, which *roll describes.
+bool8 Gunk_PeekWildMonOfSpecies(u16 species, u8 area, struct GunkDexNavRoll *roll)
 {
-    const struct WildPokemonInfo *info = Gunk_GetLandMonsInfo();
-    u8 slot, tries, nature, i;
+    const struct WildPokemonInfo *info = Gunk_GetWildMonsInfo(area);
+    u8 slot, nature, i;
     u16 iv[2];
     u32 pid;
 
-    if (info == NULL)
+    if (!Gunk_ChooseSlotOfSpecies(info, area, species, &slot))
         return FALSE;
-    for (tries = 0; tries < 100; tries++)
-    {
-        slot = ChooseWildMonIndex_Land();
-        if (info->wildPokemon[slot].species == species)
-            break;
-    }
-    if (tries == 100)
-    {
-        for (slot = 0; slot < LAND_WILD_COUNT; slot++)
-        {
-            if (info->wildPokemon[slot].species == species)
-                break;
-        }
-        if (slot == LAND_WILD_COUNT)
-            return FALSE;
-    }
-    ChooseWildMonLevel(&info->wildPokemon[slot]);
+    roll->level = ChooseWildMonLevel(&info->wildPokemon[slot]);
     if (species != SPECIES_UNOWN)
     {
         nature = Random() % NUM_NATURES;
@@ -654,10 +644,13 @@ bool8 Gunk_PeekLandMonOfSpecies(u16 species, u32 *personality, u8 *ivTotal)
     }
     iv[0] = Random();
     iv[1] = Random();
-    *personality = pid;
-    *ivTotal = 0;
+    roll->personality = pid;
+    roll->ivTotal = 0;
     for (i = 0; i < 2; i++)
-        *ivTotal += (iv[i] & MAX_IV_MASK) + ((iv[i] >> 5) & MAX_IV_MASK) + ((iv[i] >> 10) & MAX_IV_MASK);
+    {
+        roll->ivWords[i] = iv[i];
+        roll->ivTotal += (iv[i] & MAX_IV_MASK) + ((iv[i] >> 5) & MAX_IV_MASK) + ((iv[i] >> 10) & MAX_IV_MASK);
+    }
     return TRUE;
 }
 

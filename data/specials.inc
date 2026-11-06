@@ -456,5 +456,6 @@ gSpecials::
 	def_special Gunk_TranslatePCMenuResult  @ Gunk's
 	def_special Gunk_DexNavPrepareList  @ Gunk's
 	def_special Gunk_DexNavStartSearch  @ Gunk's
+	def_special Gunk_ShowDexNavScreen  @ Gunk's
 	def_special Gunk_FollowerTalkPrepare  @ Gunk's
 gSpecialsEnd::

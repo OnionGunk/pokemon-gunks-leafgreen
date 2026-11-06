@@ -10,6 +10,14 @@
 
 #define NUM_ALTERING_CAVE_TABLES 9
 
+enum
+{
+    WILD_AREA_LAND,
+    WILD_AREA_WATER,
+    WILD_AREA_ROCKS,
+    WILD_AREA_FISHING,
+};
+
 struct WildPokemon
 {
     u8 minLevel;
@@ -42,9 +50,18 @@ bool8 DoesCurrentMapHaveFishingMons(void);
 void FishingWildEncounter(u8 rod);
 u16 GetLocalWildMon(bool8 *isWaterMon);
 u16 GetLocalWaterMon(void);
-const struct WildPokemonInfo *Gunk_GetLandMonsInfo(void);
-bool8 Gunk_GenerateLandMonOfSpecies(u16 species);
-bool8 Gunk_PeekLandMonOfSpecies(u16 species, u32 *personality, u8 *ivTotal);
+const struct WildPokemonInfo *Gunk_GetWildMonsInfo(u8 area);
+bool8 Gunk_GenerateWildMonOfSpecies(u16 species, u8 area);
+// Gunk's DexNav: a wild roll seen ahead (src/wild_encounter.c, Gunk_PeekWildMonOfSpecies)
+struct GunkDexNavRoll
+{
+    u32 personality;
+    u16 ivWords[2]; // as CreateMon draws them: HP/Atk/Def, then Speed/SpAtk/SpDef, 5 bits each
+    u8 level;
+    u8 ivTotal;
+};
+
+bool8 Gunk_PeekWildMonOfSpecies(u16 species, u8 area, struct GunkDexNavRoll *roll);
 bool8 UpdateRepelCounter(void);
 void DisableWildEncounters(bool8 state);
 u8 GetUnownLetterByPersonalityLoByte(u32 personality);

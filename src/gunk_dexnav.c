@@ -23,8 +23,9 @@
 #include "data.h"
 #include "constants/species.h"
 
-// Gunk's DexNav (key item). Pick one of the area's grass Pokemon from a list and it hides in a patch of
-// rustling grass near the player; step into the patch to battle it. Every Pokemon it finds is a normal wild
+// Gunk's DexNav (key item). Pick one of the area's grass or surfing Pokemon on the DexNav screen
+// (src/gunk_dexnav_screen.c) and it hides nearby, in a patch of rustling grass or of rippling water; step (or surf)
+// into the patch to battle it. Every Pokemon it finds is a normal wild
 // roll for that map slot (same species, level range and RNG method as a random encounter). The search level
 // (one per species, raised by every DexNav battle) and the chain (DexNav battles in a row against the same
 // species that end in a win or a catch) only decide how many of those normal rolls are made: the best one is
@@ -44,6 +45,8 @@
 #define SEARCH_FRAMES 600 // a search lasts 10 seconds of the player being free to walk
 #define PATCH_SHAKE_FRAMES 30 // the patch shakes twice a second
 
+#define LIST_MAX (LAND_WILD_COUNT + WATER_WILD_COUNT)
+
 struct DexNavSearch
 {
     u16 species;
@@ -55,14 +58,18 @@ struct DexNavSearch
     bool8 active;
     bool8 inBattle;
     bool8 gotAwayPending; // timed out: say so once the player can be told
+    u8 area; // WILD_AREA_LAND or WILD_AREA_WATER
+    u8 rippleTimer;
+    u32 seed; // the RNG state the chosen roll starts from
+    struct GunkDexNavRoll roll; // the Pokemon the patch holds (the field search bar shows it)
 };
 
 static EWRAM_DATA struct DexNavSearch sSearch = {0};
-static EWRAM_DATA u16 sListSpecies[LAND_WILD_COUNT] = {0};
+static EWRAM_DATA u16 sListSpecies[LIST_MAX] = {0};
+static EWRAM_DATA u8 sListArea[LIST_MAX] = {0};
 static EWRAM_DATA u8 sListCount = 0;
-static EWRAM_DATA u8 sListNames[LAND_WILD_COUNT][POKEMON_NAME_LENGTH + 1] = {0};
 
-static const u8 sText_Unseen[] = _("----------");
+static const u8 sText_Unseen[] = _("?????");
 
 // The patch: the grass rustle (FLDEFF_UNUSED_GRASS's frames), replayed from the start every PATCH_SHAKE_FRAMES:
 // 6 frames still, then the 8 rustle frames at 3 frames each. (The field effect's own animation shakes once, then
@@ -144,6 +151,11 @@ static void StopPatchSprite(void)
 {
     struct Sprite *sprite = &gSprites[sSearch.spriteId];
 
+    if (sSearch.area == WILD_AREA_WATER)
+    {
+        sSearch.spriteId = MAX_SPRITES; // the ripples end by themselves
+        return;
+    }
     if (sSearch.spriteId < MAX_SPRITES && sprite->inUse && sprite->data[0] == FLDEFF_UNUSED_GRASS
      && sprite->callback == WaitFieldEffectSpriteAnim)
         FieldEffectStop(sprite, FLDEFF_UNUSED_GRASS);
@@ -154,12 +166,29 @@ static bool8 IsPatchSpriteAlive(void)
 {
     struct Sprite *sprite = &gSprites[sSearch.spriteId];
 
+    if (sSearch.area == WILD_AREA_WATER) // ripples end by themselves: a new one twice a second
+        return ++sSearch.rippleTimer < PATCH_SHAKE_FRAMES;
+
     return sSearch.spriteId < MAX_SPRITES && sprite->inUse && sprite->data[0] == FLDEFF_UNUSED_GRASS
         && sprite->callback == WaitFieldEffectSpriteAnim;
 }
 
 static void SpawnPatchSprite(void)
 {
+    if (sSearch.area == WILD_AREA_WATER)
+    {
+        s16 x = sSearch.x, y = sSearch.y;
+
+        SetSpritePosToOffsetMapCoords(&x, &y, 8, 8);
+        gFieldEffectArguments[0] = x;
+        gFieldEffectArguments[1] = y + 4;
+        gFieldEffectArguments[2] = 151; // subpriority, as a surfer's own ripples
+        gFieldEffectArguments[3] = 3;
+        FieldEffectStart(FLDEFF_RIPPLE);
+        sSearch.spriteId = MAX_SPRITES;
+        sSearch.rippleTimer = 0;
+        return;
+    }
     gFieldEffectArguments[0] = sSearch.x;
     gFieldEffectArguments[1] = sSearch.y;
     gFieldEffectArguments[2] = 0; // subpriority
@@ -183,34 +212,42 @@ static bool8 IsOnSearchMap(void)
     return sSearch.mapGroup == gSaveBlock1Ptr->location.mapGroup && sSearch.mapNum == gSaveBlock1Ptr->location.mapNum;
 }
 
-// special: fills the list menu (LISTMENU_GUNK_DEXNAV) with the map's grass Pokemon; VAR_RESULT = how many
-void Gunk_DexNavPrepareList(void)
+static void AddAreaToList(u8 area)
 {
-    const struct WildPokemonInfo *info = Gunk_GetLandMonsInfo();
+    const struct WildPokemonInfo *info = Gunk_GetWildMonsInfo(area);
+    u8 count = area == WILD_AREA_WATER ? WATER_WILD_COUNT : LAND_WILD_COUNT;
     u8 i, j;
 
-    sListCount = 0;
-    if (info != NULL && !GetSafariZoneFlag())
+    if (info == NULL)
+        return;
+    for (i = 0; i < count; i++)
     {
-        for (i = 0; i < LAND_WILD_COUNT; i++)
-        {
-            u16 species = info->wildPokemon[i].species;
+        u16 species = info->wildPokemon[i].species;
 
-            for (j = 0; j < sListCount; j++)
-            {
-                if (sListSpecies[j] == species)
-                    break;
-            }
-            if (j == sListCount && species != SPECIES_NONE)
-            {
-                sListSpecies[sListCount] = species;
-                if (GetSetPokedexFlag(SpeciesToNationalPokedexNum(species), FLAG_GET_SEEN))
-                    StringCopy(sListNames[sListCount], gSpeciesNames[species]);
-                else
-                    StringCopy(sListNames[sListCount], sText_Unseen);
-                sListCount++;
-            }
+        if (species == SPECIES_NONE)
+            continue;
+        for (j = 0; j < sListCount; j++)
+        {
+            if (sListSpecies[j] == species && sListArea[j] == area)
+                break;
         }
+        if (j == sListCount)
+        {
+            sListSpecies[sListCount] = species;
+            sListArea[sListCount] = area;
+            sListCount++;
+        }
+    }
+}
+
+// special: lists the map's grass Pokemon, then its surfing Pokemon, for the DexNav screen; VAR_RESULT = how many
+void Gunk_DexNavPrepareList(void)
+{
+    sListCount = 0;
+    if (!GetSafariZoneFlag())
+    {
+        AddAreaToList(WILD_AREA_LAND);
+        AddAreaToList(WILD_AREA_WATER);
     }
     gSpecialVar_Result = sListCount;
 }
@@ -220,13 +257,115 @@ u8 Gunk_DexNavListCount(void)
     return sListCount;
 }
 
-const u8 *Gunk_DexNavListLabel(u8 i)
+u16 Gunk_DexNavListSpecies(u8 i)
 {
-    return sListNames[i];
+    return i < sListCount ? sListSpecies[i] : SPECIES_NONE;
 }
 
-// special: VAR_0x8005 = the list row chosen. Places the patch; VAR_RESULT = TRUE if it found grass for it.
-// STR_VAR_1 = the species' name (or the unseen dashes), STR_VAR_2 = its search level.
+u8 Gunk_DexNavListArea(u8 i)
+{
+    return i < sListCount ? sListArea[i] : WILD_AREA_LAND;
+}
+
+// The levels list row <i>'s Pokemon comes at in its area: the lowest and highest of its encounter slots
+void Gunk_DexNavLevelRange(u8 i, u8 *minLevel, u8 *maxLevel)
+{
+    const struct WildPokemonInfo *info;
+    u8 slot, count;
+
+    *minLevel = *maxLevel = 0;
+    if (i >= sListCount)
+        return;
+    info = Gunk_GetWildMonsInfo(sListArea[i]);
+    count = sListArea[i] == WILD_AREA_WATER ? WATER_WILD_COUNT : LAND_WILD_COUNT;
+    if (info == NULL)
+        return;
+    for (slot = 0; slot < count; slot++)
+    {
+        const struct WildPokemon *mon = &info->wildPokemon[slot];
+
+        if (mon->species != sListSpecies[i])
+            continue;
+        if (*minLevel == 0 || mon->minLevel < *minLevel)
+            *minLevel = mon->minLevel;
+        if (mon->maxLevel > *maxLevel)
+            *maxLevel = mon->maxLevel;
+    }
+}
+
+u16 Gunk_DexNavChainSpecies(void)
+{
+    return GetChainSpecies();
+}
+
+u8 Gunk_DexNavSearchLevel(u16 species)
+{
+    return GetSearchLevel(species);
+}
+
+u8 Gunk_DexNavChain(u16 species)
+{
+    return GetChain(species);
+}
+
+// The row the screen's cursor starts on: the chained species if it is listed, else the first row
+u8 Gunk_DexNavDefaultRow(void)
+{
+    u8 i;
+
+    for (i = 0; i < sListCount; i++)
+    {
+        if (sListSpecies[i] == GetChainSpecies())
+            return i;
+    }
+    return 0;
+}
+
+// The Pokemon the search finds, chosen as it starts: GetRollCount normal rolls are peeked at (the random numbers a
+// roll draws, without making the Pokemon: 21 full ones cost half a second) and the best is kept, a shiny first,
+// otherwise the highest IV total. Its RNG state is kept, and stepping onto the patch replays that roll for real.
+static bool8 ChooseSearchRoll(void)
+{
+    u8 rolls, i;
+    u32 bestScore = 0, otId = GetPlayerTrainerId();
+    bool8 haveBest = FALSE;
+
+    rolls = GetRollCount(sSearch.species);
+    gGunkHoldVBlankRandom = TRUE; // no Random() from VBlank between a roll's draws
+    for (i = 0; i < rolls; i++)
+    {
+        u32 seed = gRngValue, score;
+        struct GunkDexNavRoll roll;
+
+        if (!Gunk_PeekWildMonOfSpecies(sSearch.species, sSearch.area, &roll))
+            break;
+        score = roll.ivTotal;
+        if (GET_SHINY_VALUE(otId, roll.personality) < SHINY_ODDS)
+            score += 0x1000;
+        if (!haveBest || score > bestScore)
+        {
+            sSearch.seed = seed;
+            sSearch.roll = roll;
+            bestScore = score;
+            haveBest = TRUE;
+        }
+        if (score >= 0x1000)
+            break;
+    }
+    gGunkHoldVBlankRandom = FALSE;
+    return haveBest;
+}
+
+const struct GunkDexNavRoll *Gunk_DexNavSearchRoll(u16 *species)
+{
+    if (!sSearch.active || sSearch.inBattle)
+        return NULL;
+    *species = sSearch.species;
+    return &sSearch.roll;
+}
+
+// special: VAR_0x8005 = the list row chosen. Places the patch; VAR_RESULT = TRUE if it found grass (or water) for it.
+// STR_VAR_1 = the species' name (or "?????" if unseen), STR_VAR_2 = its search level, VAR_0x8006 = TRUE if it searches the water.
 void Gunk_DexNavStartSearch(void)
 {
     s16 px, py, x, y;
@@ -239,13 +378,17 @@ void Gunk_DexNavStartSearch(void)
     if (gSpecialVar_0x8005 >= sListCount)
         return;
     species = sListSpecies[gSpecialVar_0x8005];
-    StringCopy(gStringVar1, sListNames[gSpecialVar_0x8005]);
+    gSpecialVar_0x8006 = sListArea[gSpecialVar_0x8005] == WILD_AREA_WATER;
+    if (GetSetPokedexFlag(SpeciesToNationalPokedexNum(species), FLAG_GET_SEEN))
+        StringCopy(gStringVar1, gSpeciesNames[species]);
+    else
+        StringCopy(gStringVar1, sText_Unseen);
     ConvertIntToDecimalStringN(gStringVar2, GetSearchLevel(species), STR_CONV_MODE_LEFT_ALIGN, 3);
 
     if (sSearch.active)
         EndSearch();
 
-    // a tall grass tile in sight, 2 to 5 tiles away, that the player could walk onto
+    // a tall grass (or surfable water) tile in sight, 2 to 5 tiles away, that the player could walk (or surf) onto
     PlayerGetDestCoords(&px, &py);
     for (y = py - PATCH_MAX_DIST; y <= py + PATCH_MAX_DIST; y++)
     {
@@ -256,8 +399,15 @@ void Gunk_DexNavStartSearch(void)
 
             if (dx + dy < PATCH_MIN_DIST || dx > 6 || dy > 4)
                 continue;
-            if (!MetatileBehavior_IsTallGrass(MapGridGetMetatileBehaviorAt(x, y)))
+            if (gSpecialVar_0x8006)
+            {
+                if (!MetatileBehavior_IsSurfableAndNotWaterfall(MapGridGetMetatileBehaviorAt(x, y)))
+                    continue;
+            }
+            else if (!MetatileBehavior_IsTallGrass(MapGridGetMetatileBehaviorAt(x, y)))
+            {
                 continue;
+            }
             if (MapGridGetCollisionAt(x, y) || GetObjectEventIdByXY(x, y) != OBJECT_EVENTS_COUNT)
                 continue;
             candidatesX[count] = x;
@@ -270,6 +420,7 @@ void Gunk_DexNavStartSearch(void)
 
     pick = Random() % count;
     sSearch.species = species;
+    sSearch.area = sListArea[gSpecialVar_0x8005];
     sSearch.x = candidatesX[pick];
     sSearch.y = candidatesY[pick];
     sSearch.mapGroup = gSaveBlock1Ptr->location.mapGroup;
@@ -277,6 +428,8 @@ void Gunk_DexNavStartSearch(void)
     sSearch.framesLeft = SEARCH_FRAMES;
     sSearch.inBattle = FALSE;
     sSearch.gotAwayPending = FALSE;
+    if (!ChooseSearchRoll())
+        return;
     sSearch.active = TRUE;
     SpawnPatchSprite();
     gSpecialVar_Result = TRUE;
@@ -288,6 +441,7 @@ void Gunk_DexNavStartSearch(void)
 // stands still with nothing else going on, a message says the Pokemon got away.
 void Gunk_DexNavUpdate(void)
 {
+    Gunk_DexNavHudUpdate();
     if (sSearch.gotAwayPending && !ArePlayerFieldControlsLocked() && !ScriptContext_IsEnabled()
      && gPlayerAvatar.tileTransitionState == T_NOT_MOVING)
     {
@@ -317,9 +471,7 @@ void Gunk_DexNavUpdate(void)
 bool8 Gunk_DexNavTryStartBattle(void)
 {
     s16 x, y;
-    u8 rolls, i;
-    u32 bestScore = 0, bestSeed = 0, otId;
-    bool8 haveBest = FALSE;
+    bool8 haveRoll;
 
     if (!sSearch.active || sSearch.inBattle || !IsOnSearchMap())
         return FALSE;
@@ -328,38 +480,12 @@ bool8 Gunk_DexNavTryStartBattle(void)
     if (x != sSearch.x || y != sSearch.y)
         return FALSE;
 
-    // The rolls are only peeked at (the random numbers a roll draws, without making the Pokemon: 21 full ones cost
-    // half a second); then the RNG goes back to where the best one started and that one is made for real.
-    rolls = GetRollCount(sSearch.species);
-    otId = GetPlayerTrainerId();
+    // the Pokemon chosen when the search started (ChooseSearchRoll): its roll, replayed from where it started
     gGunkHoldVBlankRandom = TRUE; // VBlank's own Random() would make the replay differ from the peek
-    for (i = 0; i < rolls; i++)
-    {
-        u32 seed = gRngValue, personality, score;
-        u8 ivTotal;
-
-        if (!Gunk_PeekLandMonOfSpecies(sSearch.species, &personality, &ivTotal))
-        {
-            gGunkHoldVBlankRandom = FALSE;
-            EndSearch();
-            return FALSE;
-        }
-        score = ivTotal;
-        if (GET_SHINY_VALUE(otId, personality) < SHINY_ODDS)
-            score += 0x1000;
-        if (!haveBest || score > bestScore)
-        {
-            bestSeed = seed;
-            bestScore = score;
-            haveBest = TRUE;
-        }
-        if (score >= 0x1000)
-            break;
-    }
-    gRngValue = bestSeed;
-    haveBest = Gunk_GenerateLandMonOfSpecies(sSearch.species);
+    gRngValue = sSearch.seed;
+    haveRoll = Gunk_GenerateWildMonOfSpecies(sSearch.species, sSearch.area);
     gGunkHoldVBlankRandom = FALSE;
-    if (!haveBest)
+    if (!haveRoll)
     {
         EndSearch();
         return FALSE;
@@ -367,6 +493,7 @@ bool8 Gunk_DexNavTryStartBattle(void)
 
     StopPatchSprite();
     sSearch.inBattle = TRUE;
+    Gunk_DexNavHudHide();
     StartWildBattle();
     return TRUE;
 }

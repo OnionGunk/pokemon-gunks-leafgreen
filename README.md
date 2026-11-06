@@ -10,19 +10,32 @@ change and its test results, and `docs/RELEASE_NOTES_v*.md` each release.
 
 ## Features
 
-- **DexNav.** A key item lists the grass Pokémon of the area you're in (unseen ones as dashes). Pick one and it
-  hides in a patch of rustling grass nearby; reach it within 10 seconds. Search levels and chains raise the odds of
-  good IVs and shinies, and every Pokémon it finds is a legal wild roll.
-- **Pokémon follow you.** Your lead Pokémon walks behind you, any of the 386, shinies in their shiny colours. Walk
-  into it to swap places. Talk to it for a line that shows how it feels about you.
+- **DexNav.** A key item (use it from the Bag or register it to SELECT) that opens the DexNav screen for the place
+  you're in:
+  - a title bar with the area's name and how many of its Pokémon you've caught;
+  - LAND and WATER tabs (switch with L/R), each a grid of the area's grass or surfing Pokémon: an icon once seen,
+    "?" before that, a ball mark once caught;
+  - an info panel for the highlighted Pokémon: name and status, where it's found, its level range, search level
+    and chain.
+
+  Pick a Pokémon you've seen and it hides nearby, in a patch of rustling grass or rippling water. Step (or Surf)
+  into the patch within 10 seconds to battle it. While you look, a bar at the top of the screen shows what's
+  hiding: name, level, a shiny mark, nature, ability and a gold star for each perfect IV. Every Pokémon it finds
+  is a legal wild roll for that spot. Search levels and chains raise the odds of good IVs and shinies. A GBA has
+  one screen, so there's no second-screen DexNav view.
+- **Pokémon follow you.** Your lead Pokémon walks behind you, any of the 386 species, shinies in their shiny
+  colours. Walk into it to swap places. Talk to it and it reacts (an emote, its cry) with a line that shows how it
+  feels about you. It goes back into its ball while you Surf or a scene plays out, and comes back after. RETURN in
+  its party menu puts it away, WALK brings it back.
+- **Faster play:** instant text, a faster EXP bar, auto-run (hold B to walk), eggs that hatch twice as fast.
+- **Items:** reusable TMs, two registered items (SELECT and R), bag sorting (START in the bag), a prompt to use
+  another Repel when one runs out, and an Endless Repel you switch on and off.
+- **Pokémon:** IV and EV view in the summary (A on the SKILLS page), Exp. All (half the EXP and the EVs for the
+  Pokémon that didn't battle), vitamins up to 252 EVs, and trade evolutions without trading. HM moves work without
+  teaching the move, and every PC has a free Move Tutor that remembers and forgets moves.
 - **16 PC boxes** instead of 14. A save from vanilla LeafGreen loads, with its boxes kept.
-- **Faster play:** an INSTANT text speed, a faster EXP bar, auto-run, faster egg hatching.
-- **Items:** reusable TMs, two registered items (SELECT and R), bag sorting (START), a prompt to use another
-  Repel when one runs out, and an Endless Repel toggle. The new key items come from Oak with the Pokédex, before the first gym.
 - **Quick Run and Quick Ball:** in battle, R runs and L throws your last-used ball (hold L and press Left/Right
   to pick another). A small icon shows which ball and how many are left.
-- **Pokémon:** IV and EV view in the summary, Exp. All, vitamins up to 252 EVs, and trade evolutions without
-  trading. HM moves work without teaching the move, and every Pokémon Center PC has a Move Tutor.
 
 Save safety comes first: every build has to pass an emulator test suite that covers save cycles, power cuts
 right after and during a save, and damaged-save recovery. The suite runs on the unmodified game too, as the control.

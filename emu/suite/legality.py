@@ -67,6 +67,7 @@ class Catcher(Features):
                       flags=[FLAG_SYS_POKEMON_GET], name="legality")
         self.warp(grp, num, x, y, name=f"legality_{grp}_{num}")
         self.g.cmd(f"write16 {self.sb1() + SB1_REGISTERED_ITEM} {ITEM['DEXNAV']}")
+        self.seen_all()
 
     def catch(self):
         """In a wild battle: BAG -> POKe BALLS -> Master Ball -> USE, then B through the dex entry and the
@@ -138,43 +139,69 @@ class Catcher(Features):
         g.cmd(f"write8 {sb1 + SB1_GUNK_DEXNAV + dex - 1} {level}",
               f"write16 {sb1 + SB1_GUNK_DEXNAV + 386} {species}", f"write8 {sb1 + SB1_GUNK_DEXNAV + 388} {chain}")
 
-    def dexnav_patch(self, choice):
-        """Open the DexNav (registered on SELECT), choose list entry <choice>: returns (species, x, y)."""
+    def open_dexnav_on(self, choice):
+        """Open the DexNav screen (registered on SELECT) with the cursor on list entry <choice>."""
         g = self.g
-        g.cmd("press Select 4", "wait 60")
+        g.cmd("press Select 4", "wait 90")  # the DexNav screen, faded in
+        for _ in range(16):  # to the first cell (the cursor starts on the chained species)
+            g.cmd("press Left 4", "wait 6")
         for _ in range(choice):
-            g.cmd("press Down 4", "wait 10")
-        g.cmd("press A 4", "wait 60")
-        raw = self.read(g.a("sSearch"), 12)
+            g.cmd("press Right 4", "wait 10")
+
+    def start_search(self):
+        """A on the DexNav screen: back to the field, the search starts (it chooses its Pokemon then)."""
+        g = self.g
+        g.cmd("press A 4", "wait 150")  # fade out, back to the field, fade in, the search starts
+        raw = self.read(g.a("sSearch"), 32)
         species, sx, sy = struct.unpack_from("<Hhh", raw, 0)
-        g.cmd("press A 4", "wait 30", "press A 4", "wait 30")
-        return species, sx - 7, sy - 7, raw[11]  # struct DexNavSearch.active
+        pid, = struct.unpack_from("<I", raw, 20)  # struct DexNavSearch.roll.personality
+        return species, sx - 7, sy - 7, raw[11], pid  # struct DexNavSearch.active
+
+    def dexnav_patch(self, choice):
+        """Search for list entry <choice>: returns (species, x, y, active)."""
+        self.open_dexnav_on(choice)
+        species, x, y, active, _ = self.start_search()
+        self.g.wait_field(press="A", max_steps=40)  # through the "rustling" message
+        return species, x, y, active
+
+    def trainer_id(self):
+        return self.g.u32(self.sb2() + 0x0A)
 
     def dexnav(self, choice, level=0, chain=0, shiny=False):
         g = self.g
-        species, x, y, active = self.dexnav_patch(choice)
+        if level or chain:
+            # the search chooses its Pokemon as it starts: learn the species, then set its level and chain first
+            g.cmd(f"save {self.path('predexnav.state')}")
+            species, _, _, active = self.dexnav_patch(choice)
+            g.cmd(f"load {self.path('predexnav.state')}", "wait 2")
+            if not active:
+                return None
+            self.set_search(species, level, chain)
+        self.open_dexnav_on(choice)
+        if shiny:
+            # a seed for which the search's chosen roll is shiny (the search keeps a shiny roll first)
+            g.cmd(f"save {self.path('preshiny.state')}")
+            otid = self.trainer_id()
+            for seed in range(1, 2001):
+                g.cmd(f"load {self.path('preshiny.state')}",
+                      f"write32 {g.a('gRngValue')} {seed * 2654435761 & 0xFFFFFFFF}")
+                species, x, y, active, pid = self.start_search()
+                if active and ((otid & 0xFFFF) ^ (otid >> 16) ^ (pid & 0xFFFF) ^ (pid >> 16)) < 8:
+                    print(f"shiny seed found after {seed} tries", flush=True)
+                    break
+            else:
+                return None
+        else:
+            species, x, y, active, _ = self.start_search()
+        g.wait_field(press="A", max_steps=40)  # through the "rustling" message
         if not active:
             return None
-        if level or chain:
-            self.set_search(species, level, chain)
-        # walk next to the patch, then (shiny) search a seed, then step on
+        # walk next to the patch, then step on
         px, py = self.pos()
         self.walk_to(x, y + 1 if py > y else y - 1 if py < y else y)
         if self.in_battle():
             return self.catch()
         step = "Up" if self.pos()[1] > y else "Down" if self.pos()[1] < y else ("Left" if self.pos()[0] > x else "Right")
-        if shiny:
-            g.cmd(f"save {self.path('preshiny.state')}")
-            enemy = g.a("gEnemyParty")
-            for seed in range(1, 2001):
-                # the DexNav fills gEnemyParty[0] as the player steps on the patch, before the battle starts
-                g.cmd(f"load {self.path('preshiny.state')}", f"write32 {enemy} 0",
-                      f"write32 {g.a('gRngValue')} {seed * 2654435761 & 0xFFFFFFFF}", f"press {step} 8", "wait 20")
-                raw = self.read(enemy, 100)
-                if struct.unpack_from("<I", raw, 0)[0] and is_shiny(raw):
-                    print(f"shiny seed found after {seed} tries", flush=True)
-                    return self.catch()
-            return None
         g.cmd(f"press {step} 8", "wait 40")
         if not self.in_battle():
             self.walk_to(x, y)

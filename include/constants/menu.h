@@ -79,7 +79,6 @@
 #define LISTMENU_WIRELESS_LECTURE_HEADERS  4
 #define LISTMENU_BERRY_POWDER              5
 #define LISTMENU_TRAINER_TOWER_FLOORS      6
-#define LISTMENU_GUNK_DEXNAV               7 // Gunk's: labels from src/gunk_dexnav.c
 
 // Std String Ids
 #define STDSTRING_COOL              0

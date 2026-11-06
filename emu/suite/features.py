@@ -240,12 +240,21 @@ class Features:
         self.record("endless repel", battles == 0 and self.flag(FLAG_GUNK_ENDLESS_REPEL_ON) == 1,
                     f"{battles} wild battles in 30 steps of grass")
 
+    def seen_all(self):
+        """Every species 1-386 seen, in all three copies the game checks (SaveBlock2 seen, SaveBlock1 seen1 and
+        seen2): the DexNav only searches for Pokemon already seen."""
+        bits = "FF" * 48 + "03"
+        for addr in (self.sb2() + 0x18 + 0x44, self.sb1() + 0x05F8, self.sb1() + 0x3A18):
+            for i in range(49):
+                self.g.cmd(f"write8 {addr + i} {int(bits[2 * i:2 * i + 2], 16)}")
+
     def check_dexnav(self):
         g = self.g
+        self.seen_all()
         g.cmd(f"write16 {self.sb1() + SB1_REGISTERED_ITEM} {ITEM['DEXNAV']}")
-        g.cmd("press Select 4", "wait 60")
+        g.cmd("press Select 4", "wait 90")  # the DexNav screen (src/gunk_dexnav_screen.c), faded in
         self.shot("dexnav_list.png")
-        g.cmd("press A 4", "wait 60")
+        g.cmd("press A 4", "wait 150")  # fade out, back to the field, fade in, the search starts
         self.shot("dexnav_hiding.png")
         search = g.a("sSearch")
         raw = bytes.fromhex(g.cmd(f"read {search} 12")[0].replace(" ", ""))

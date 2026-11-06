@@ -15,18 +15,21 @@ change and its test results, and `docs/RELEASE_NOTES_v*.md` each release.
   - a title bar with the area's name and how many of its Pokémon you've caught;
   - LAND and WATER tabs (switch with L/R), each a grid of the area's grass or surfing Pokémon: an icon once seen,
     "?" before that, a ball mark once caught;
+  - an OTHER tab with the area's Pokémon found by the Old, Good and Super Rods and by Rock Smash, and where to look;
   - an info panel for the highlighted Pokémon: name and status, where it's found, its level range, search level
     and chain.
 
   Pick a Pokémon you've seen and it hides nearby, in a patch of rustling grass or rippling water. Step (or Surf)
   into the patch within 10 seconds to battle it. While you look, a bar at the top of the screen shows what's
-  hiding: name, level, a shiny mark, nature, ability and a gold star for each perfect IV. Every Pokémon it finds
-  is a legal wild roll for that spot. Search levels and chains raise the odds of good IVs and shinies. A GBA has
-  one screen, so there's no second-screen DexNav view.
+  hiding: name, level, a shiny mark, nature, ability, a gold star for each perfect IV, and its held item. Every
+  Pokémon it finds is a legal wild roll for that spot. Search levels and chains raise the odds of good IVs, shinies
+  and rare held items. A GBA has one screen, so there's no second-screen DexNav view.
+- **Area info:** START on the DexNav screen shows the area's encounter odds and levels for grass, water, each rod
+  and Rock Smash, where the roaming legendary is now, and what your Repel lets through.
 - **Pokémon follow you.** Your lead Pokémon walks behind you, any of the 386 species, shinies in their shiny
   colours. Walk into it to swap places. Talk to it and it reacts (an emote, its cry) with a line that shows how it
-  feels about you. It goes back into its ball while you Surf or a scene plays out, and comes back after. RETURN in
-  its party menu puts it away, WALK brings it back.
+  feels about you. It goes back into its ball (a Poké Ball opens on its tile) while you Surf or a scene plays
+  out, and comes back out after. RETURN in its party menu puts it away, WALK brings it back.
 - **Faster play:** instant text, a faster EXP bar, auto-run (hold B to walk), eggs that hatch twice as fast.
 - **Items:** reusable TMs, two registered items (SELECT and R), bag sorting (START in the bag), a prompt to use
   another Repel when one runs out, and an Endless Repel you switch on and off.
@@ -36,6 +39,9 @@ change and its test results, and `docs/RELEASE_NOTES_v*.md` each release.
 - **16 PC boxes** instead of 14. A save from vanilla LeafGreen loads, with its boxes kept.
 - **Quick Run and Quick Ball:** in battle, R runs and L throws your last-used ball (hold L and press Left/Right
   to pick another). A small icon shows which ball and how many are left.
+
+Oak gives the Endless Repel, the Exp. All and the DexNav with the Pokédex, before the first gym. On a save that's
+already past that, Mom has them, and Oak's aide in Pewter City offers them too.
 
 Save safety comes first: every build has to pass an emulator test suite that covers save cycles, power cuts
 right after and during a save, and damaged-save recovery. The suite runs on the unmodified game too, as the control.

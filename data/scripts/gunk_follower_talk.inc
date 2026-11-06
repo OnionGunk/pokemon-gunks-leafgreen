@@ -22,8 +22,11 @@ EventScript_GunkFollowerTalk::
 	end
 
 EventScript_GunkFollowerTired::
+	setvar VAR_0x8005, 6 @ GUNK_EMOTE_DOTS
+	special Gunk_FollowerEmote
 	playmoncry VAR_0x8004, CRY_MODE_FAINT
 	waitmoncry
+	delay 20
 	msgbox Text_GunkFollowerTired
 	release
 	end
@@ -44,8 +47,11 @@ EventScript_GunkFollowerShy::
 	end
 
 EventScript_GunkFollowerSteady::
+	setvar VAR_0x8005, 5 @ GUNK_EMOTE_NOTE
+	special Gunk_FollowerEmote
 	playmoncry VAR_0x8004, CRY_MODE_NORMAL
 	waitmoncry
+	delay 20
 	msgbox Text_GunkFollowerSteady
 	release
 	end

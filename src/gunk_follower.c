@@ -177,6 +177,7 @@
 #include "metatile_behavior.h"
 #include "pokemon.h"
 #include "string_util.h"
+#include "trainer_see.h"
 #include "random.h"
 #include "script.h"
 #include "sound.h"
@@ -1489,6 +1490,19 @@ void StartFollowerMakeWayStep(u8 stepDirection)
  * and VAR_0x8004 = its species (for its cry in the reaction).
  * Reads only: the follower and the party are left as they are.
  */
+/**
+ * SPECIAL: Gunk_FollowerEmote
+ *
+ * The emote VAR_0x8005 (GUNK_EMOTE_*) over the follower, for its talk
+ * reactions (EventScript_GunkFollowerTalk): the note and dots have no
+ * movement action of their own. The script waits for it with a delay.
+ */
+void Gunk_FollowerEmote(void)
+{
+    if (sFollower.spriteSpawned)
+        GunkShowEmote(LOCALID_FOLLOWER, gSpecialVar_0x8005);
+}
+
 void Gunk_FollowerTalkPrepare(void)
 {
     struct Pokemon *mon = &gPlayerParty[GetFollowerPartySlot()];

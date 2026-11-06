@@ -11,6 +11,7 @@
 #include "constants/event_object_movement.h"
 #include "constants/event_objects.h"
 #include "constants/trainer_types.h"
+#include "trainer_see.h"
 
 typedef u8 (*TrainerApproachFunc)(struct ObjectEvent *, s16, s16, s16);
 typedef bool8 (*TrainerSeeFunc)(u8, struct Task *, struct ObjectEvent *);
@@ -599,6 +600,15 @@ static const struct SpriteFrameImage sSpriteImages_Emoticons[] =
     overworld_frame(sGfx_Emoticons, 2, 2, 12),
     overworld_frame(sGfx_Emoticons, 2, 2, 13),
     overworld_frame(sGfx_Emoticons, 2, 2, 14),
+
+    // Gunk's: a note and dots (the follower's moods)
+    overworld_frame(sGfx_Emoticons, 2, 2, 15),
+    overworld_frame(sGfx_Emoticons, 2, 2, 16),
+    overworld_frame(sGfx_Emoticons, 2, 2, 17),
+
+    overworld_frame(sGfx_Emoticons, 2, 2, 18),
+    overworld_frame(sGfx_Emoticons, 2, 2, 19),
+    overworld_frame(sGfx_Emoticons, 2, 2, 20),
 };
 
 static const union AnimCmd sAnimCmd_ExclamationMark1[] = {
@@ -636,12 +646,28 @@ static const union AnimCmd sAnimCmd_QuestionMark[] = {
     ANIMCMD_END
 };
 
+static const union AnimCmd sAnimCmd_GunkNote[] = {
+    ANIMCMD_FRAME(15,  4),
+    ANIMCMD_FRAME(16,  4),
+    ANIMCMD_FRAME(17, 52),
+    ANIMCMD_END
+};
+
+static const union AnimCmd sAnimCmd_GunkDots[] = {
+    ANIMCMD_FRAME(18,  4),
+    ANIMCMD_FRAME(19,  4),
+    ANIMCMD_FRAME(20, 52),
+    ANIMCMD_END
+};
+
 static const union AnimCmd *const sSpriteAnimTable_Emoticons[] = {
-    sAnimCmd_ExclamationMark1,
-    sAnimCmd_DoubleExclMark,
-    sAnimCmd_X,
-    sAnimCmd_SmileyFace,
-    sAnimCmd_QuestionMark
+    [GUNK_EMOTE_EXCLAMATION] = sAnimCmd_ExclamationMark1,
+    [GUNK_EMOTE_DOUBLE_EXCL] = sAnimCmd_DoubleExclMark,
+    [GUNK_EMOTE_X]           = sAnimCmd_X,
+    [GUNK_EMOTE_SMILE]       = sAnimCmd_SmileyFace,
+    [GUNK_EMOTE_QUESTION]    = sAnimCmd_QuestionMark,
+    [GUNK_EMOTE_NOTE]        = sAnimCmd_GunkNote,
+    [GUNK_EMOTE_DOTS]        = sAnimCmd_GunkDots,
 };
 
 static const struct SpriteTemplate sSpriteTemplate_Emoticons = {
@@ -702,6 +728,20 @@ u8 FldEff_QuestionMarkIcon(void)
         SetIconSpriteData(&gSprites[spriteId], FLDEFF_QUESTION_MARK_ICON, 4);
 
     return 0;
+}
+
+// Gunk's: any of the emotes (GUNK_EMOTE_*) over the object <localId> on the current map, as the field effects
+// do it. The question mark's field effect id goes with it, for SpriteCB_TrainerIcons to stop it the same way.
+void GunkShowEmote(u8 localId, u8 emote)
+{
+    u8 spriteId = CreateSpriteAtEnd(&sSpriteTemplate_Emoticons, 0, 0, 0x52);
+
+    if (spriteId == MAX_SPRITES)
+        return;
+    gFieldEffectArguments[0] = localId;
+    gFieldEffectArguments[1] = gSaveBlock1Ptr->location.mapNum;
+    gFieldEffectArguments[2] = gSaveBlock1Ptr->location.mapGroup;
+    SetIconSpriteData(&gSprites[spriteId], FLDEFF_QUESTION_MARK_ICON, emote);
 }
 
 static void SetIconSpriteData(struct Sprite *sprite, u16 fldEffId, u8 spriteAnimNum)

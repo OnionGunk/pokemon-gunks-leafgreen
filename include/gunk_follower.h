@@ -62,6 +62,7 @@ void StartFollowerMakeWayStep(u8 stepDirection);
 #define FOLLOWER_TALK_DEVOTED 5
 
 void Gunk_FollowerTalkPrepare(void);
+void Gunk_FollowerEmote(void);
 // Every object movement a script starts (scrcmd.c): a scene puts the follower in its ball until it ends
 void Gunk_FollowerOnScriptMovement(u16 localId, const u8 *movementScript);
 extern const u8 EventScript_GunkFollowerTalk[];

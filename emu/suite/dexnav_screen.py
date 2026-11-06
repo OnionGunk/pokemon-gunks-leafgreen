@@ -41,6 +41,8 @@ AREA_TAB = {0: 0, 1: 1, 2: 2, 3: 2}  # the list's WILD_AREA_* (land, water, rock
 MAP_ROCK_TUNNEL_B1F = (1, 82)
 ROCK_TUNNEL_STAND = (38, 28)  # its first warp's tile
 SPECIES_GEODUDE = 74
+SPECIES_ENTEI = 244  # the area page's roaming Pokemon
+SB1_ROAMER = 0x30D0  # struct SaveBlock1.roamer
 METHOD_ROCK_SMASH = 5  # DEXNAV_METHOD_ROCK_SMASH
 CAUGHT = {16}  # Pidgey
 COL_BALL = 14  # DXCOL_BALL (src/data/gunk_dexnav_skin.h)
@@ -141,6 +143,12 @@ class Screen(Features):
         arrays = [raw[4 + k * n:4 + (k + 1) * n] for k in range(5)]
         return {"count": raw[0], "cursor": raw[1], "tab": raw[2], "icons": arrays[0], "x": arrays[1],
                 "y": arrays[2], "row": arrays[3], "col": arrays[4], "tabs": raw[4 + 5 * n:4 + 5 * n + NUM_TABS]}
+
+    def area_page(self):
+        """struct DexNavScreen.areaPage, after tabCount[] and helpWasEnabled; None with the screen closed"""
+        g = self.g
+        ptr = g.u32(g.a("sDexNavScreen"))
+        return g.u8(ptr + 4 + 5 * LIST_MAX + NUM_TABS + 1) if ptr else None
 
     def goto_cell(self, target, area):
         """Move the cursor to list row <target> (in tab <area>): R to its tab, then Up/Down, then Left/Right."""
@@ -283,6 +291,22 @@ def main():
                  f"tab {o['tab']} cursor {o['cursor']} (other {other}), Magikarp {magikarp}, after A: screen "
                  f"{hint is not None}, search {t.search()['active']}")
         g.cmd("press R 4", "wait 30")  # back round to LAND
+
+        # START: the area page, with a roaming Entei (seen) on this route and the Endless Repel on; START goes back
+        roamer = t.sb1() + SB1_ROAMER
+        g.cmd(f"write16 {roamer + 8} {SPECIES_ENTEI}", f"write8 {roamer + 0x13} 1",
+              f"write8 {g.a('sRoamerLocation')} {MAP_ROUTE13[0]}", f"write8 {g.a('sRoamerLocation') + 1} {MAP_ROUTE13[1]}")
+        t.set_dex(SPECIES_ENTEI, False)
+        t.set_flag(FLAG_GUNK_ENDLESS_REPEL_ON)
+        g.cmd("press Start 4", "wait 30")
+        page = t.area_page()
+        t.shot("dexnav_screen_area.png")
+        g.cmd("press Start 4", "wait 30")
+        after = t.area_page()
+        s = t.screen()
+        t.record("START shows the area page, START goes back to the grid", page == 1 and after == 0 and s is not None
+                 and s["tab"] == 0, f"page {page}, after START {after}, tab {s['tab'] if s else None}")
+        t.clear_flag(FLAG_GUNK_ENDLESS_REPEL_ON)
 
         g.cmd("press B 4")
         ok = t.back_in_field()

@@ -74,6 +74,7 @@ static const u8 sDexNavColors_TabOff[]   = {DXCOL_TAB_OFF, DXCOL_TAB_OFF_TEXT, D
 static const u8 sDexNavColors_Text[]     = {DXCOL_WHITE, DXCOL_TEXT, DXCOL_SHADOW};
 static const u8 sDexNavColors_Label[]    = {DXCOL_WHITE, DXCOL_LABEL, DXCOL_SHADOW};
 static const u8 sDexNavColors_Unseen[]   = {DXCOL_CELL, DXCOL_CELL_EDGE, DXCOL_EMPTY};
+static const u8 sDexNavColors_Faded[]    = {DXCOL_WHITE, DXCOL_EMPTY, DXCOL_WHITE};
 static const u8 sDexNavColors_Backdrop[] = {DXCOL_BACKDROP, DXCOL_TEXT, DXCOL_SHADOW};
 
 // The caught mark, an 8x8 ball: '.' none, 'o' outline, 'r' top, 'w' bottom
@@ -139,5 +140,23 @@ static const u8 sDexNavText_ChainNone[]   = _("CHAIN  none yet");
 static const u8 sDexNavText_ChainOf[]     = _("CHAIN  ");
 static const u8 sDexNavText_Times[]       = _(" ×");
 static const u8 sDexNavText_NotSeenHint[] = _("Not seen yet: no search.");
-static const u8 sDexNavText_Footer[]      = _("{A_BUTTON}SEARCH NEARBY  {B_BUTTON}CLOSE");
+static const u8 sDexNavText_Footer[]      = _("{A_BUTTON}SEARCH  {B_BUTTON}CLOSE  {START_BUTTON}AREA");
 static const u8 sDexNavText_FooterTabs[]  = _("{L_BUTTON}{R_BUTTON}TABS");
+
+// The area page (START): this area's odds and levels, the roaming Pokemon, the Repel
+static const u8 sDexNavText_AreaTab[]     = _("AREA");
+static const u8 sDexNavText_ThisArea[]    = _("THIS AREA");
+static const u8 sDexNavText_AreaGrass[]   = _("Grass");
+static const u8 sDexNavText_AreaNone[]    = _("none");
+static const u8 sDexNavText_Percent[]     = _("%");
+static const u8 sDexNavText_AreaHint[]    = _("%: a step, or a rock");
+static const u8 sDexNavText_Roaming[]     = _("ROAMING");
+static const u8 sDexNavText_RoamingNone[] = _("None");
+static const u8 sDexNavText_RoamingNear[] = _("near ");
+static const u8 sDexNavText_Repel[]       = _("REPEL");
+static const u8 sDexNavText_RepelOff[]    = _("Off");
+static const u8 sDexNavText_RepelAndUp[]  = _(" and up");
+static const u8 sDexNavText_RepelAnyLv[]  = _("Any level appears");
+static const u8 sDexNavText_RepelEndless[] = _("Endless Repel");
+static const u8 sDexNavText_RepelSteps[]  = _(" steps left");
+static const u8 sDexNavText_FooterArea[]  = _("{START_BUTTON}{B_BUTTON}BACK TO THE LIST");

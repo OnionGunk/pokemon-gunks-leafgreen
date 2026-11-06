@@ -11,6 +11,7 @@
 #include "pokemon_icon.h"
 #include "quest_log.h"
 #include "region_map.h"
+#include "roamer.h"
 #include "scanline_effect.h"
 #include "script.h"
 #include "string_util.h"
@@ -27,6 +28,9 @@
 //    level and chain;
 //  - the current chain under the grid, and the buttons in a footer.
 // A starts a search for the highlighted Pokemon (src/gunk_dexnav.c places it nearby), B goes back.
+// START swaps the grid for the area page, FRLG's answer to Platinum's honey trees and Poke Radar: the area's odds
+// (the chance a step in grass or on water, or a smashed rock, finds a Pokemon) and levels for each way of finding
+// them, where the roaming Pokemon is now, and what the Repel lets through. START or B goes back to the grid.
 //
 // Opened by the script special Gunk_ShowDexNavScreen (data/scripts/gunk_dexnav.inc) after the screen fades to
 // black; it returns to the field and goes on with the script, with VAR_RESULT = the list row picked, or 127.
@@ -78,6 +82,7 @@ struct DexNavScreen
     u8 col[LIST_MAX];
     u8 tabCount[NUM_TABS];
     bool8 helpWasEnabled; // FRLG's L/R Help is off while the screen uses L and R for its tabs
+    bool8 areaPage;       // START: the area page is up instead of the grid
 };
 
 static EWRAM_DATA struct DexNavScreen *sDexNavScreen = NULL;
@@ -463,6 +468,152 @@ static void UpdateIcons(void)
     }
 }
 
+// --- the area page (START) ---
+
+// One way of finding Pokemon here: its name, the chance a step (or a smashed rock) finds one, and the levels of its
+// slots <first> to <last>. <info> NULL: there are none this way here.
+static void PrintAreaLine(u8 y, const u8 *label, const struct WildPokemonInfo *info, u8 first, u8 last, bool8 chance)
+{
+    u8 i, minLevel = 0xFF, maxLevel = 0;
+    u8 *end;
+
+    AddTextPrinterParameterized3(WIN_GRID, FONT_SMALL, 4, y, info != NULL ? sDexNavColors_Label : sDexNavColors_Faded,
+                                 TEXT_SKIP_DRAW, label);
+    if (info == NULL)
+    {
+        AddTextPrinterParameterized3(WIN_GRID, FONT_SMALL, 82, y, sDexNavColors_Faded, TEXT_SKIP_DRAW, sDexNavText_AreaNone);
+        return;
+    }
+    if (chance)
+    {
+        end = ConvertIntToDecimalStringN(gStringVar4, info->encounterRate, STR_CONV_MODE_LEFT_ALIGN, 3);
+        StringCopy(end, sDexNavText_Percent);
+        AddTextPrinterParameterized3(WIN_GRID, FONT_SMALL, 78 - GetStringWidth(FONT_SMALL, gStringVar4, 0), y,
+                                     sDexNavColors_Text, TEXT_SKIP_DRAW, gStringVar4);
+    }
+    for (i = first; i <= last; i++)
+    {
+        if (info->wildPokemon[i].minLevel < minLevel)
+            minLevel = info->wildPokemon[i].minLevel;
+        if (info->wildPokemon[i].maxLevel > maxLevel)
+            maxLevel = info->wildPokemon[i].maxLevel;
+    }
+    end = StringCopy(gStringVar4, sDexNavText_Lv);
+    end = ConvertIntToDecimalStringN(end, minLevel, STR_CONV_MODE_LEFT_ALIGN, 3);
+    if (maxLevel != minLevel)
+    {
+        *end++ = CHAR_HYPHEN;
+        ConvertIntToDecimalStringN(end, maxLevel, STR_CONV_MODE_LEFT_ALIGN, 3);
+    }
+    AddTextPrinterParameterized3(WIN_GRID, FONT_SMALL, 82, y, sDexNavColors_Text, TEXT_SKIP_DRAW, gStringVar4);
+}
+
+// The odds and levels for each way of finding Pokemon here. The rods share the fishing slots: Old Rod 0-1, Good Rod
+// 2-4, Super Rod 5-9; a bite has no area odds of its own, so the rods show levels only.
+static void DrawAreaOdds(void)
+{
+    const struct WildPokemonInfo *fishing = Gunk_GetWildMonsInfo(WILD_AREA_FISHING);
+
+    FillWindowPixelBuffer(WIN_GRID, PIXEL_FILL(DXCOL_WHITE));
+    AddTextPrinterParameterized3(WIN_GRID, FONT_NORMAL, 4, 1, sDexNavColors_Label, TEXT_SKIP_DRAW, sDexNavText_ThisArea);
+    FillWindowPixelRect(WIN_GRID, PIXEL_FILL(DXCOL_SHADOW), 4, 16, 120, 1);
+    PrintAreaLine(19, sDexNavText_AreaGrass, Gunk_GetWildMonsInfo(WILD_AREA_LAND), 0, LAND_WILD_COUNT - 1, TRUE);
+    PrintAreaLine(32, sDexNavText_Surfing, Gunk_GetWildMonsInfo(WILD_AREA_WATER), 0, WATER_WILD_COUNT - 1, TRUE);
+    PrintAreaLine(45, sDexNavText_OldRod, fishing, 0, 1, FALSE);
+    PrintAreaLine(58, sDexNavText_GoodRod, fishing, 2, 4, FALSE);
+    PrintAreaLine(71, sDexNavText_SuperRod, fishing, 5, FISH_WILD_COUNT - 1, FALSE);
+    PrintAreaLine(84, sDexNavText_RockSmash, Gunk_GetWildMonsInfo(WILD_AREA_ROCKS), 0, ROCK_WILD_COUNT - 1, TRUE);
+    PutWindowTilemap(WIN_GRID);
+    CopyWindowToVram(WIN_GRID, COPYWIN_FULL);
+}
+
+// The level the Repel checks wild Pokemon against: the first Pokemon in the party that can battle
+static u8 GetRepelLevel(void)
+{
+    u8 i;
+
+    for (i = 0; i < PARTY_SIZE; i++)
+    {
+        if (GetMonData(&gPlayerParty[i], MON_DATA_HP) && !GetMonData(&gPlayerParty[i], MON_DATA_IS_EGG))
+            return GetMonData(&gPlayerParty[i], MON_DATA_LEVEL);
+    }
+    return 0;
+}
+
+// The roaming Pokemon (once it roams, after the National Dex) and where it is now; the Repel and what it lets through
+static void DrawAreaWorld(void)
+{
+    struct Roamer *roamer = &gSaveBlock1Ptr->roamer;
+    u16 repelSteps = VarGet(VAR_REPEL_STEP_COUNT);
+    bool8 endless = FlagGet(FLAG_GUNK_ENDLESS_REPEL_ON);
+    u8 *end;
+
+    FillWindowPixelBuffer(WIN_INFO, PIXEL_FILL(DXCOL_WHITE));
+    AddTextPrinterParameterized3(WIN_INFO, FONT_SMALL, 2, 1, sDexNavColors_Label, TEXT_SKIP_DRAW, sDexNavText_Roaming);
+    if (roamer->active && roamer->species != SPECIES_NONE)
+    {
+        AddTextPrinterParameterized3(WIN_INFO, FONT_NORMAL, 2, 13, sDexNavColors_Text, TEXT_SKIP_DRAW,
+                                     IsSeen(roamer->species) ? gSpeciesNames[roamer->species] : sDexNavText_Unseen);
+        end = StringCopy(gStringVar4, sDexNavText_RoamingNear);
+        GetMapName(end, GetRoamerLocationMapSectionId(), 0);
+        AddTextPrinterParameterized3(WIN_INFO, FONT_SMALL, 2, 29, sDexNavColors_Text, TEXT_SKIP_DRAW, gStringVar4);
+    }
+    else
+    {
+        AddTextPrinterParameterized3(WIN_INFO, FONT_NORMAL, 2, 13, sDexNavColors_Text, TEXT_SKIP_DRAW, sDexNavText_RoamingNone);
+    }
+    FillWindowPixelRect(WIN_INFO, PIXEL_FILL(DXCOL_SHADOW), 2, 45, 92, 1);
+
+    AddTextPrinterParameterized3(WIN_INFO, FONT_SMALL, 2, 49, sDexNavColors_Label, TEXT_SKIP_DRAW, sDexNavText_Repel);
+    if (repelSteps != 0 || endless)
+    {
+        // as IsWildLevelAllowedByRepel: wild Pokemon below the lead's level are kept away
+        end = StringCopy(gStringVar4, sDexNavText_Lv);
+        end = ConvertIntToDecimalStringN(end, GetRepelLevel(), STR_CONV_MODE_LEFT_ALIGN, 3);
+        StringCopy(end, sDexNavText_RepelAndUp);
+        AddTextPrinterParameterized3(WIN_INFO, FONT_NORMAL, 2, 61, sDexNavColors_Text, TEXT_SKIP_DRAW, gStringVar4);
+        if (endless)
+        {
+            StringCopy(gStringVar4, sDexNavText_RepelEndless);
+        }
+        else
+        {
+            end = ConvertIntToDecimalStringN(gStringVar4, repelSteps, STR_CONV_MODE_LEFT_ALIGN, 3);
+            StringCopy(end, sDexNavText_RepelSteps);
+        }
+        AddTextPrinterParameterized3(WIN_INFO, FONT_SMALL, 2, 77, sDexNavColors_Label, TEXT_SKIP_DRAW, gStringVar4);
+    }
+    else
+    {
+        AddTextPrinterParameterized3(WIN_INFO, FONT_NORMAL, 2, 61, sDexNavColors_Text, TEXT_SKIP_DRAW, sDexNavText_RepelOff);
+        AddTextPrinterParameterized3(WIN_INFO, FONT_SMALL, 2, 77, sDexNavColors_Label, TEXT_SKIP_DRAW, sDexNavText_RepelAnyLv);
+    }
+    CopyWindowToVram(WIN_INFO, COPYWIN_GFX);
+}
+
+static void DrawAreaPage(void)
+{
+    u8 i;
+
+    FillWindowPixelBuffer(WIN_TABS, PIXEL_FILL(DXCOL_BACKDROP));
+    FillWindowPixelRect(WIN_TABS, PIXEL_FILL(DXCOL_WHITE), 0, 2, TAB_WIDTH, 14);
+    FillWindowPixelRect(WIN_TABS, PIXEL_FILL(DXCOL_LABEL), 0, 2, TAB_WIDTH, 2);
+    AddTextPrinterParameterized3(WIN_TABS, FONT_SMALL, (TAB_WIDTH - GetStringWidth(FONT_SMALL, sDexNavText_AreaTab, 0)) / 2, 4,
+                                 sDexNavColors_TabOn, TEXT_SKIP_DRAW, sDexNavText_AreaTab);
+    CopyWindowToVram(WIN_TABS, COPYWIN_GFX);
+    DrawAreaOdds();
+    DrawAreaWorld();
+    DrawHint(sDexNavText_AreaHint);
+    FillWindowPixelBuffer(WIN_FOOTER, PIXEL_FILL(DXCOL_TITLE));
+    AddTextPrinterParameterized3(WIN_FOOTER, FONT_SMALL, 4, 3, sDexNavColors_Title, TEXT_SKIP_DRAW, sDexNavText_FooterArea);
+    CopyWindowToVram(WIN_FOOTER, COPYWIN_GFX);
+    for (i = 0; i < sDexNavScreen->count; i++)
+    {
+        if (sDexNavScreen->iconSpriteIds[i] < MAX_SPRITES)
+            gSprites[sDexNavScreen->iconSpriteIds[i]].invisible = TRUE;
+    }
+}
+
 static void Redraw(void)
 {
     DrawChain();
@@ -639,11 +790,29 @@ static void Task_DexNavScreen(u8 taskId)
     if (gPaletteFade.active)
         return;
 
+    if (sDexNavScreen->areaPage)
+    {
+        if (JOY_NEW(START_BUTTON | B_BUTTON))
+        {
+            PlaySE(SE_SELECT);
+            sDexNavScreen->areaPage = FALSE;
+            DrawFooter();
+            Redraw();
+        }
+        return;
+    }
+
     cursor = sDexNavScreen->cursor;
     tab = sDexNavScreen->tab;
     row = sDexNavScreen->row[cursor];
     col = sDexNavScreen->col[cursor];
-    if (JOY_NEW(A_BUTTON))
+    if (JOY_NEW(START_BUTTON))
+    {
+        PlaySE(SE_SELECT);
+        sDexNavScreen->areaPage = TRUE;
+        DrawAreaPage();
+    }
+    else if (JOY_NEW(A_BUTTON))
     {
         if (!IsSeen(Gunk_DexNavListSpecies(cursor)))
         {

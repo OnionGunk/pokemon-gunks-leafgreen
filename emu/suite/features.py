@@ -837,9 +837,9 @@ def main():
         f.new_game(mons=[(SPECIES["KADABRA"], 35), (SPECIES["BULBASAUR"], 5)],
                    items=[(ITEM["RARE_CANDY"], 1), (ITEM["PROTEIN"], 3)], name="menus")
         f.check_kadabra()
+        f.check_vitamins()
         f.new_game(mons=[(SPECIES["KADABRA"], 35)], items=[(ITEM["RARE_CANDY"], 1)], name="everstone")
         f.check_everstone()
-        f.check_vitamins()
         f.new_game(mons=[(SPECIES["BULBASAUR"], 5)], items=[(ITEM_TM_CASE, 1), (ITEM_TM09, 1), (ITEM_HM01, 1)],
                    flags=[FLAG_BADGE01_GET, FLAG_BADGE02_GET, FLAG_SYS_POKEMON_GET], name="tmhm")
         f.check_tm_reusable()

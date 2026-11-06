@@ -638,10 +638,27 @@ class Features:
                 return x - 7, y - 7
         return None
 
+    def watch_follower_ball(self):
+        """Start counting the follower's Poke Balls (src/gunk_follower.c): each ShowFollowerBall call's animation
+        (0 going back, 1 coming out) and the frames a ball sprite ran (SpriteCB_FollowerBall)."""
+        g = self.g
+        reg = "local reg = event.on_bus_exec or event.onmemoryexecute "
+        g.cmd("lua GB = {} GBF = 0 " + reg +
+              f"reg(function() GB[#GB + 1] = emu.getregister('R1') end, {g.a('ShowFollowerBall') & ~1}, 'gunk_ball') "
+              f"reg(function() GBF = GBF + 1 end, {g.a('SpriteCB_FollowerBall') & ~1}, 'gunk_ball_cb') return 1")
+
+    def follower_balls(self):
+        """(['back'/'out' per ball shown], frames a ball sprite ran) since watch_follower_ball."""
+        out = self.g.cmd("lua local t = {} for _, a in ipairs(GB) do t[#t + 1] = a end "
+                         "return table.concat(t, ',') .. ';' .. GBF")[0][4:]
+        anims, frames = out.split(";")
+        return [("back", "out")[int(a)] for a in anims.split(",") if a], int(frames)
+
     def check_follower_surf(self):
         """Lapras (no Surf; HM03 in the bag) surfs off Pallet Town's shore: the follower goes back into its ball
         (no follower object while surfing), and comes back out beside the player after landing."""
         g = self.g
+        self.watch_follower_ball()
         g.cmd("press Down 2", "wait 20", "press A 4", "wait 60")
         g.wait_field(press="A", max_steps=60, settle=4)
         g.cmd("wait 60", "press Down 16", "wait 20", "press Down 16", "wait 30")
@@ -653,14 +670,19 @@ class Features:
         landed = self.pos()
         follower_after = self.follower_pos()
         self.shot("surf_landed.png")
+        balls, frames = self.follower_balls()
         ok = surfing and follower_while is None and landed[1] <= 16             and follower_after is not None and abs(follower_after[0] - landed[0]) + abs(follower_after[1] - landed[1]) <= 3
         self.record("follower and Surf", ok, f"surfing {surfing != 0} at {on_water}, follower at {follower_while}; "
                     f"landed at {landed}, follower at {follower_after}")
+        # a ball opens and shuts on its tile each way (16 frames each)
+        self.record("follower's Poke Ball with Surf", balls == ["back", "out"] and frames >= 24,
+                    f"balls {balls}, {frames} frames shown")
 
     def check_follower_scene(self):
         """Viridian City's old man blocks the road north (before the parcel): his scene walks the player back down a
         tile. The follower goes back into its ball for the scene and comes out again once it's over."""
         g = self.g
+        self.watch_follower_ball()
         g.cmd("press Up 16", "wait 30", "press Up 16", "wait 30")
         gone, polls = False, 0
         for _ in range(120):  # the old man's message, then the walk back down
@@ -677,6 +699,9 @@ class Features:
         ok = gone and after is not None and abs(after[0] - pos[0]) + abs(after[1] - pos[1]) <= 2
         self.record("follower in a scene", ok, f"gone during the scene {gone} ({polls} polls); player {pos}, "
                     f"follower after {after}")
+        balls, frames = self.follower_balls()
+        self.record("follower's Poke Ball in a scene", balls == ["back", "out"] and frames >= 24,
+                    f"balls {balls}, {frames} frames shown")
 
     def check_follower_map_edge(self):
         """Walk north out of Pallet Town into Route 1: the follower crosses the map edge behind the player."""

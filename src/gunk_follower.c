@@ -48,12 +48,13 @@
  *     tiles the follower may stand on, so it gets out of the way for the
  *     whole scene and comes back once the script has ended. A script that
  *     only turns characters, shows an emote or talks leaves it out.
- * Going back: the ball sound (SE_BALL_TRADE), then it flickers for
- * RECALL_FRAMES frames and is despawned. It stays in the ball for at least
- * MIN_BALL_FRAMES frames, so even a one-step scene reads as going back
- * rather than a flicker. Coming out: it spawns on a walkable tile next to
- * the player as at any spawn, with SE_BALL_OPEN, never in the middle of a
- * player's step. A map loaded while it's in its ball (a warp
+ * Going back: the ball sound (SE_BALL_TRADE) and a Poke Ball on its tile
+ * (the battle's ball sprite, see ShowFollowerBall) that opens; it stays
+ * RECALL_FRAMES frames and is despawned as the ball closes again. It stays
+ * in the ball for at least MIN_BALL_FRAMES frames, so even a one-step scene
+ * reads as going back. Coming out: it spawns on a walkable tile next to
+ * the player as at any spawn, with SE_BALL_OPEN and the ball opening on its
+ * tile, never in the middle of a player's step. A map loaded while it's in its ball (a warp
  * during a scene, a save loaded at sea) spawns no follower until the
  * reason is over. The follower state is untouched, so it is the same
  * Pokemon that comes back.
@@ -183,6 +184,9 @@
 #include "sound.h"
 #include "sprite.h"
 #include "constants/songs.h"
+#include "decompress.h"
+#include "field_weather.h"
+#include "pokeball.h"
 
 /*
  * Distance thresholds for follower behavior (Manhattan distance in tiles).
@@ -255,14 +259,14 @@ static EWRAM_DATA struct {
     u32 pid;                /* Personality value of the walking Pokemon */
     u32 otId;               /* Original trainer ID of the walking Pokemon */
     u8 inBall;              /* Gunk's: IN_BALL_* reasons it's in its ball now (see BACK IN THE BALL) */
-    u8 recallFrames;        /* Gunk's: frames of flickering left before it's despawned */
+    u8 recallFrames;        /* Gunk's: frames left before it's despawned (the ball shuts) */
     u8 ballFrames;          /* Gunk's: frames it has been in its ball, up to MIN_BALL_FRAMES */
     bool8 outOfBallSound;   /* Gunk's: it went back into its ball; play SE_BALL_OPEN when it comes out */
 } sFollower = {0};
 
 #define IN_BALL_SURF    (1 << 0)
 #define IN_BALL_SCENE   (1 << 1)
-#define RECALL_FRAMES   8
+#define RECALL_FRAMES   8  /* the ball's open frame: it's despawned as the ball shuts */
 #define MIN_BALL_FRAMES 30
 
 /* Gunk's: every species has a follower sprite (graphics/gunk_followers) */
@@ -1035,8 +1039,116 @@ static bool8 IsStepMovementAction(u8 action)
 }
 
 /*
+ * Gunk's: the Poke Ball on the follower's tile as it goes back (open, then
+ * shut) or comes out (shut, then open): the battle's Poke Ball sprite
+ * (src/pokeball.c), loaded by its tag and freed when the last one is done.
+ * Nothing shows if no sprite, tile space or palette is free.
+ */
+#define FOLLOWER_BALL_FRAME_TICKS 8 /* = RECALL_FRAMES: it's despawned as the ball shuts */
+enum {
+    FOLLOWER_BALL_GOING_BACK,
+    FOLLOWER_BALL_COMING_OUT,
+};
+
+static const struct OamData sFollowerBallOam = {
+    .shape = SPRITE_SHAPE(16x16),
+    .size = SPRITE_SIZE(16x16),
+    .priority = 2,
+};
+static const union AnimCmd sFollowerBallAnim_GoingBack[] = {
+    ANIMCMD_FRAME(4, FOLLOWER_BALL_FRAME_TICKS),
+    ANIMCMD_FRAME(0, FOLLOWER_BALL_FRAME_TICKS),
+    ANIMCMD_END,
+};
+static const union AnimCmd sFollowerBallAnim_ComingOut[] = {
+    ANIMCMD_FRAME(0, FOLLOWER_BALL_FRAME_TICKS),
+    ANIMCMD_FRAME(4, FOLLOWER_BALL_FRAME_TICKS),
+    ANIMCMD_END,
+};
+static const union AnimCmd *const sFollowerBallAnims[] = {
+    [FOLLOWER_BALL_GOING_BACK] = sFollowerBallAnim_GoingBack,
+    [FOLLOWER_BALL_COMING_OUT] = sFollowerBallAnim_ComingOut,
+};
+static void SpriteCB_FollowerBall(struct Sprite *sprite);
+static const struct SpriteTemplate sFollowerBallTemplate = {
+    .tileTag = 55000, /* GFX_TAG_POKE_BALL (src/pokeball.c) */
+    .paletteTag = 55000,
+    .oam = &sFollowerBallOam,
+    .anims = sFollowerBallAnims,
+    .images = NULL,
+    .affineAnims = gDummySpriteAffineAnimTable,
+    .callback = SpriteCB_FollowerBall,
+};
+
+static bool8 IsFollowerBallShown(void)
+{
+    u8 i;
+
+    for (i = 0; i < MAX_SPRITES; i++)
+    {
+        if (gSprites[i].inUse && gSprites[i].callback == SpriteCB_FollowerBall)
+            return TRUE;
+    }
+    return FALSE;
+}
+
+static void FreeFollowerBallGfx(void)
+{
+    if (!IsFollowerBallShown())
+    {
+        FreeSpriteTilesByTag(sFollowerBallTemplate.tileTag);
+        FreeSpritePaletteByTag(sFollowerBallTemplate.paletteTag);
+    }
+}
+
+static void SpriteCB_FollowerBall(struct Sprite *sprite)
+{
+    if (!sprite->animEnded)
+        return;
+    DestroySprite(sprite);
+    FreeFollowerBallGfx();
+}
+
+static void ShowFollowerBall(struct ObjectEvent *followerObj, u8 anim)
+{
+    u8 spriteId, paletteNum;
+    s16 x, y;
+
+    /* by tag, not a count: map changes and battles clear every sprite */
+    if (IndexOfSpritePaletteTag(sFollowerBallTemplate.paletteTag) == 0xFF)
+    {
+        LoadCompressedSpritePalette(&gBallSpritePalettes[BALL_POKE]);
+        paletteNum = IndexOfSpritePaletteTag(sFollowerBallTemplate.paletteTag);
+        if (paletteNum == 0xFF)
+            return;
+        UpdateSpritePaletteWithWeather(paletteNum);
+    }
+    if (GetSpriteTileStartByTag(sFollowerBallTemplate.tileTag) == 0xFFFF
+     && LoadCompressedSpriteSheet(&gBallSpriteSheets[BALL_POKE]) == 0)
+    {
+        FreeFollowerBallGfx();
+        return;
+    }
+    SetSpritePosToMapCoords(followerObj->currentCoords.x, followerObj->currentCoords.y, &x, &y);
+    spriteId = CreateSprite(&sFollowerBallTemplate, x + 8, y + 8, 0);
+    if (spriteId == MAX_SPRITES)
+    {
+        FreeFollowerBallGfx();
+        return;
+    }
+    gSprites[spriteId].coordOffsetEnabled = TRUE;
+    if (followerObj->spriteId < MAX_SPRITES)
+    {
+        /* just in front of the follower, behind anyone standing south of it (the player's head, coming out above) */
+        gSprites[spriteId].oam.priority = gSprites[followerObj->spriteId].oam.priority;
+        gSprites[spriteId].subpriority = gSprites[followerObj->spriteId].subpriority - 1;
+    }
+    StartSpriteAnim(&gSprites[spriteId], anim);
+}
+
+/*
  * Gunk's: the follower's ball (see BACK IN THE BALL). Brings the reasons up
- * to date, then flickers and despawns a follower that has to go back.
+ * to date, then puts a follower that has to go back into its ball.
  * Returns TRUE while it's in its ball or going back, when the rest of the
  * frame's update must not move or spawn it.
  */
@@ -1053,9 +1165,6 @@ static bool8 UpdateFollowerBall(void)
 
     if (sFollower.recallFrames != 0)
     {
-        followerObj = GetFollowerObjectEvent();
-        if (followerObj != NULL && followerObj->spriteId < MAX_SPRITES)
-            gSprites[followerObj->spriteId].invisible = (sFollower.recallFrames / 2) & 1;
         if (--sFollower.recallFrames == 0)
             DespawnFollowerSprite();
         return TRUE;
@@ -1069,6 +1178,9 @@ static bool8 UpdateFollowerBall(void)
     }
     if (sFollower.spriteSpawned)
     {
+        followerObj = GetFollowerObjectEvent();
+        if (followerObj != NULL)
+            ShowFollowerBall(followerObj, FOLLOWER_BALL_GOING_BACK);
         PlaySE(SE_BALL_TRADE);
         sFollower.recallFrames = RECALL_FRAMES;
         sFollower.outOfBallSound = TRUE;
@@ -1127,6 +1239,9 @@ void UpdateFollowerPokemon(void)
         if (sFollower.spriteSpawned && sFollower.outOfBallSound)
         {
             sFollower.outOfBallSound = FALSE;
+            followerObj = GetFollowerObjectEvent();
+            if (followerObj != NULL)
+                ShowFollowerBall(followerObj, FOLLOWER_BALL_COMING_OUT);
             PlaySE(SE_BALL_OPEN);
         }
         return;

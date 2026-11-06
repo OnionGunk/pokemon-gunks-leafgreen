@@ -3,14 +3,18 @@
 A quality-of-life hack of Pokémon LeafGreen, built on [pret's FireRed/LeafGreen decompilation](https://github.com/pret/pokefirered).
 It keeps the game's difficulty and story as they are and takes the grind and friction out, for long playthroughs.
 
-**Status: in development.** There is no release yet. Every feature below is in the build and passes its emulator
-check, and a test game beats every gym leader, the Elite Four and the Champion with the same story state as vanilla
-at each step; [`docs/GUNK_CHANGES.md`](docs/GUNK_CHANGES.md) lists each change and its test results.
+**Latest release: [v1.2](../../releases/tag/v1.2)** ([v1.0](../../releases/tag/v1.0) was the first). Every
+feature below passes its emulator check, and a test game beats every gym leader, the Elite Four and the Champion
+with the same story state as vanilla at each step; [`docs/GUNK_CHANGES.md`](docs/GUNK_CHANGES.md) lists each
+change and its test results, and `docs/RELEASE_NOTES_v*.md` each release.
 
 ## Features
 
-- **DexNav.** See each route's Pokémon (caught, seen or unseen) and search for one in the grass.
-- **Pokémon follow you.**
+- **DexNav.** A key item lists the grass Pokémon of the area you're in (unseen ones as dashes). Pick one and it
+  hides in a patch of rustling grass nearby; reach it within 10 seconds. Search levels and chains raise the odds of
+  good IVs and shinies, and every Pokémon it finds is a legal wild roll.
+- **Pokémon follow you.** Your lead Pokémon walks behind you, any of the 386, shinies in their shiny colours. Walk
+  into it to swap places. Talk to it for a line that shows how it feels about you.
 - **16 PC boxes** instead of 14. A save from vanilla LeafGreen loads, with its boxes kept.
 - **Faster play:** an INSTANT text speed, a faster EXP bar, auto-run, faster egg hatching.
 - **Items:** reusable TMs, two registered items (SELECT and R), bag sorting (START), a prompt to use another

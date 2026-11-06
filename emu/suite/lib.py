@@ -200,6 +200,20 @@ def decode_mon(raw):
     return {"pid": pid, "species": species, "item": item, "exp": exp, "moves": moves, "evs": evs, "ivs": ivs}
 
 
+def encode_mon_item(raw, item):
+    """raw (bytes of a party/box Pokemon) holding <item>, with the checksum fixed."""
+    raw = bytearray(raw)
+    pid, otid = struct.unpack_from("<II", raw, 0)
+    key = pid ^ otid
+    dec = bytearray(b"".join(struct.pack("<I", struct.unpack_from("<I", raw, 0x20 + i)[0] ^ key) for i in range(0, 48, 4)))
+    gr = SUBSTRUCT_ORDERS[pid % 24].index("G")
+    struct.pack_into("<H", dec, gr * 12 + 2, item)
+    struct.pack_into("<H", raw, 0x1C, sum(struct.unpack_from("<24H", dec)) & 0xFFFF)
+    for i in range(0, 48, 4):
+        struct.pack_into("<I", raw, 0x20 + i, struct.unpack_from("<I", dec, i)[0] ^ key)
+    return bytes(raw)
+
+
 def encode_mon_evs(raw, evs):
     """raw (bytes of a party/box Pokemon) with its six EVs replaced and the checksum fixed."""
     raw = bytearray(raw)

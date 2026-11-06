@@ -12,7 +12,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lib import FLASH_SIZE, SUBSTRUCT_ORDERS, Game, decode_mon, encode_mon_evs  # noqa: E402
+from lib import FLASH_SIZE, SUBSTRUCT_ORDERS, Game, decode_mon, encode_mon_evs, encode_mon_item  # noqa: E402
 
 ERASED = b"\xff" * FLASH_SIZE
 GUNK_TEST_MAGIC = 0x4B4E5547
@@ -55,6 +55,7 @@ SB1_VARS = 0x1000
 SB1_FLAGS = 0x0EE0
 SB1_BAG_ITEMS = 0x0310
 SB2_OPTIONS = 0x14
+ITEM_EVERSTONE = 195
 SB1_GUNK_DEXNAV = 0x348C  # offsetof(struct SaveBlock1, gunkDexNav)
 SB2_ENCRYPTION_KEY = 0xF20
 SB1_DAYCARE_STEP_COUNTER = 0x309A  # offsetof(struct SaveBlock1, daycare) + 2 * 140 + 2
@@ -332,6 +333,13 @@ class Features:
         open(path, "wb").write(encode_mon_evs(raw, evs))
         self.g.cmd(f"poke EWRAM {addr - 0x02000000} {path}")
 
+    def set_held(self, slot, item):
+        addr = self.g.a("gPlayerParty") + slot * 100
+        raw = bytes.fromhex(self.g.cmd(f"read {addr} 100")[0].replace(" ", ""))
+        path = self.path("_mon.bin")
+        open(path, "wb").write(encode_mon_item(raw, item))
+        self.g.cmd(f"poke EWRAM {addr - 0x02000000} {path}")
+
     def make_egg(self, slot):
         """Party slot <slot> becomes an egg of its species with no egg cycles left (friendship 0)."""
         addr = self.g.a("gPlayerParty") + slot * 100
@@ -410,6 +418,23 @@ class Features:
         species = self.mon(0)["species"]
         self.record("trade evolution by level", species == SPECIES["ALAKAZAM"],
                     f"Kadabra 35 + Rare Candy -> species {species} (65 = Alakazam)")
+
+    def check_everstone(self):
+        """The same Kadabra 35 and Rare Candy, holding an Everstone: it levels up and stays a Kadabra."""
+        g = self.g
+        self.set_held(0, ITEM_EVERSTONE)
+        before = self.mon(0)
+        self.use_first_item_on(0, "candy_everstone.png")
+        for _ in range(60):
+            g.cmd("press A 4", "wait 30")
+            if g.field_ready():
+                break
+        self.back_to_field()
+        after = self.mon(0)
+        self.record("Everstone stops the trade evolution by level", before["item"] == ITEM_EVERSTONE
+                    and after["species"] == SPECIES["KADABRA"] and after["exp"] > before["exp"],
+                    f"Kadabra holding item {before['item']} + Rare Candy -> species {after['species']} "
+                    f"(64 = Kadabra), exp {before['exp']} -> {after['exp']}")
 
     def check_vitamins(self):
         """Bulbasaur (slot 1) with 240 Attack EVs: Protein -> 250, Protein -> 252, a third one does nothing."""
@@ -812,6 +837,8 @@ def main():
         f.new_game(mons=[(SPECIES["KADABRA"], 35), (SPECIES["BULBASAUR"], 5)],
                    items=[(ITEM["RARE_CANDY"], 1), (ITEM["PROTEIN"], 3)], name="menus")
         f.check_kadabra()
+        f.new_game(mons=[(SPECIES["KADABRA"], 35)], items=[(ITEM["RARE_CANDY"], 1)], name="everstone")
+        f.check_everstone()
         f.check_vitamins()
         f.new_game(mons=[(SPECIES["BULBASAUR"], 5)], items=[(ITEM_TM_CASE, 1), (ITEM_TM09, 1), (ITEM_HM01, 1)],
                    flags=[FLAG_BADGE01_GET, FLAG_BADGE02_GET, FLAG_SYS_POKEMON_GET], name="tmhm")

@@ -1,4 +1,4 @@
-"""DexNav held items: py -3 emu/suite/dexnav_items.py <rom.gba> <rom.elf> [searches]
+"""DexNav held items: py -3 emu/suite/dexnav_items.py <rom.gba> <rom.elf> [searches] [compound]
 
 On Route 13, Ditto (no common item, Metal Powder as its rare one). The search chooses what its Pokemon holds as it
 starts (src/gunk_dexnav.c, ChooseHeldItem): the species' own wild items, at 5% for the rare one at search level 0
@@ -7,7 +7,9 @@ with no chain, up to 20% at the top (search level 100 and a chain of 40: 5 + 20 
   often than vanilla's 5% (at least 10%: 20% expected; with 40 searches, under 10% has odds of about 1 in 30);
 - one of them is fought: the battle's Pokemon holds what the search chose (SetWildMonHeldItem asks
   Gunk_DexNavHeldItem in a DexNav battle).
-Results: emu/suite/out/<rom>/features/dexnav_items.txt.
+With "compound": a Compound Eyes lead (Butterfree) at search level 0 and no chain, where the rare item's chance is
+20% instead of 5% (Gen 4's rule, as in Gunk's Platinum): at least 7 of 60 (11.7%; under 3% odds either way).
+Results: emu/suite/out/<rom>/features/dexnav_items[_compound].txt.
 """
 import os
 import struct
@@ -22,6 +24,7 @@ from features import (FLAG_SYS_POKEDEX_GET, FLAG_SYS_POKEMON_GET, ITEM, SB1_FLAG
 from lib import decode_mon  # noqa: E402
 
 SPECIES_DITTO = 132
+SPECIES_BUTTERFREE = 12  # Compound Eyes, its only ability in Gen 3
 ITEM_METAL_POWDER = 223
 FLAG_GUNK_ENDLESS_REPEL_ON = 0x4A7
 SEARCH_HELD_ITEM = 32  # struct DexNavSearch.heldItem
@@ -72,12 +75,14 @@ class Items(Screen):
 def main():
     rom, elf = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
     n = int(sys.argv[3]) if len(sys.argv) > 3 else 40
+    compound = len(sys.argv) > 4 and sys.argv[4] == "compound"
     t = Items(rom, elf)
     g = t.g
     t0 = time.time()
     import emu
     try:
-        t.new_game(mons=[(SPECIES["PIKACHU"], 100)], items=[(ITEM["DEXNAV"], 1)],
+        lead = SPECIES_BUTTERFREE if compound else SPECIES["PIKACHU"]
+        t.new_game(mons=[(lead, 100)], items=[(ITEM["DEXNAV"], 1)],
                    flags=[FLAG_SYS_POKEMON_GET, FLAG_SYS_POKEDEX_GET, FLAG_GUNK_ENDLESS_REPEL_ON], name="dexnav_items")
         t.warp(*MAP_ROUTE13, *STAND, name="dexnav_items_route13")
         g.wait_field(press="B", max_steps=60)
@@ -94,17 +99,23 @@ def main():
         dex = t.sb1() + SB1_GUNK_DEXNAV
         held = []
         for _ in range(n):
-            # the top: search level 100 and a chain of 40 Ditto (set again each time: nothing here changes them)
-            g.cmd(f"write8 {dex + SPECIES_DITTO - 1} 100", f"write16 {dex + CHAIN_SPECIES} {SPECIES_DITTO}",
-                  f"write8 {dex + CHAIN_COUNT} 40")
+            # the top: search level 100 and a chain of 40 Ditto (set again each time: nothing here changes them);
+            # with Compound Eyes, the bottom: level 0, no chain
+            level, chain = (0, 0) if compound else (100, 40)
+            g.cmd(f"write8 {dex + SPECIES_DITTO - 1} {level}", f"write16 {dex + CHAIN_SPECIES} {SPECIES_DITTO}",
+                  f"write8 {dex + CHAIN_COUNT} {chain}")
             held.append(t.search_ditto(row))
         made = [h for h in held if h is not None]
         bad = [h for h in made if h not in (0, ITEM_METAL_POWDER)]
         powder = made.count(ITEM_METAL_POWDER)
         t.record("every search started", len(made) == n, f"{len(made)}/{n} searches started")
         t.record("only Ditto's own wild items", made and not bad, f"items {sorted(set(made))}")
-        t.record("better odds at the top (at least 10% Metal Powder; 20% expected, 5% vanilla)",
-                 made and powder * 10 >= len(made), f"Metal Powder {powder}/{len(made)}")
+        if compound:
+            t.record("a Compound Eyes lead: better odds from the start (at least 7 in 60 Metal Powder; 20% expected, "
+                     "5% without)", made and powder * 60 >= 7 * len(made), f"Metal Powder {powder}/{len(made)}")
+        else:
+            t.record("better odds at the top (at least 10% Metal Powder; 20% expected, 5% vanilla)",
+                     made and powder * 10 >= len(made), f"Metal Powder {powder}/{len(made)}")
 
         # fight the last search's Ditto: it holds what the search chose
         # (the patch is across the fence from here: the search's patch moves to the tile right of the player, and
@@ -131,7 +142,7 @@ def main():
         emu.stop()
     failed = [r for r in t.results if not r[1]]
     print(f"{len(t.results) - len(failed)}/{len(t.results)} passed in {time.time() - t0:.0f}s")
-    with open(os.path.join(t.out, "dexnav_items.txt"), "w") as f:
+    with open(os.path.join(t.out, "dexnav_items_compound.txt" if compound else "dexnav_items.txt"), "w") as f:
         for check, ok, detail in t.results:
             f.write(("PASS " if ok else "FAIL ") + check + ": " + detail + "\n")
     sys.exit(1 if failed else 0)

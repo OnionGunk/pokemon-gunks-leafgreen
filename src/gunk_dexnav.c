@@ -23,6 +23,7 @@
 #include "data.h"
 #include "constants/species.h"
 #include "constants/items.h"
+#include "constants/abilities.h"
 
 // Gunk's DexNav (key item). Pick one of the area's grass or surfing Pokemon on the DexNav screen
 // (src/gunk_dexnav_screen.c) and it hides nearby, in a patch of rustling grass or of rippling water; step (or surf)
@@ -76,6 +77,10 @@ static const u8 sText_Unseen[] = _("?????");
 
 #define HELD_ITEM_COMMON_MAX 75
 #define HELD_ITEM_RARE_MAX   20
+// with a Compound Eyes lead, as in Gen 4 (and Gunk's Platinum): 60% and 20% to start, each cap 10 higher
+#define HELD_ITEM_COMPOUND_EYES_COMMON 60
+#define HELD_ITEM_COMPOUND_EYES_RARE   20
+#define HELD_ITEM_COMPOUND_EYES_CAP    10
 
 // The patch: the grass rustle (FLDEFF_UNUSED_GRASS's frames), replayed from the start every PATCH_SHAKE_FRAMES:
 // 6 frames still, then the 8 rustle frames at 3 frames each. (The field effect's own animation shakes once, then
@@ -407,23 +412,40 @@ static bool8 ChooseSearchRoll(void)
     return haveBest;
 }
 
+// A lead (the first party slot, not an egg) with Compound Eyes: in Gen 4 and Gunk's Platinum it makes wild held items
+// more likely. Gen 3 has no such effect, so it's only the DexNav's.
+static bool8 LeadHasCompoundEyes(void)
+{
+    return GetMonData(&gPlayerParty[0], MON_DATA_SPECIES, NULL) != SPECIES_NONE
+        && !GetMonData(&gPlayerParty[0], MON_DATA_IS_EGG, NULL)
+        && GetMonAbility(&gPlayerParty[0]) == ABILITY_COMPOUND_EYES;
+}
+
 // What the searched Pokemon holds, chosen as the search starts: the species' own wild items (so it stays a legal wild
 // Pokemon), with better odds as the search level and chain grow. Vanilla: 50% the common item, 5% the rare one (always
 // the item when both are the same). Each 5 search levels add 1% to both, each link of the chain 2% to both, up to
-// 75% and 20%. The same scaling as Gunk's Ruby and Sapphire.
+// 75% and 20%. A Compound Eyes lead starts them at 60% and 20%, up to 85% and 30%.
 static u16 ChooseHeldItem(u16 species)
 {
     u16 common = gSpeciesInfo[species].itemCommon, rare = gSpeciesInfo[species].itemRare;
     u32 boost = GetSearchLevel(species) / 5 + 2 * GetChain(species);
     u32 commonOdds = 50 + boost, rareOdds = 5 + boost;
+    u32 commonMax = HELD_ITEM_COMMON_MAX, rareMax = HELD_ITEM_RARE_MAX;
     u16 rnd;
 
     if (common == rare)
         return common;
-    if (commonOdds > HELD_ITEM_COMMON_MAX)
-        commonOdds = HELD_ITEM_COMMON_MAX;
-    if (rareOdds > HELD_ITEM_RARE_MAX)
-        rareOdds = HELD_ITEM_RARE_MAX;
+    if (LeadHasCompoundEyes())
+    {
+        commonOdds = HELD_ITEM_COMPOUND_EYES_COMMON + boost;
+        rareOdds = HELD_ITEM_COMPOUND_EYES_RARE + boost;
+        commonMax += HELD_ITEM_COMPOUND_EYES_CAP;
+        rareMax += HELD_ITEM_COMPOUND_EYES_CAP;
+    }
+    if (commonOdds > commonMax)
+        commonOdds = commonMax;
+    if (rareOdds > rareMax)
+        rareOdds = rareMax;
     rnd = Random() % 100;
     if (rnd < rareOdds)
         return rare;

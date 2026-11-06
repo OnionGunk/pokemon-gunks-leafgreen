@@ -136,7 +136,13 @@ def main():
             if species != SPECIES_PIDGEY:
                 r.set_chain(species, 5)
             r.walk_to(x, y)
-            g.cmd("wait 60")
+            # the battle's transition runs before BattleMainCB2 takes over: wait for it rather than a fixed time
+            frames = 0
+            while frames < 600 and not r.in_battle():
+                g.cmd("wait 10")
+                frames += 10
+            print(f"flee search: species {species} patch {(x, y)}, player at {r.pos()}, "
+                  f"battle {r.in_battle()} after {frames} frames", flush=True)
             if r.in_battle():
                 level = r.search_level(species)
                 r.run_away()

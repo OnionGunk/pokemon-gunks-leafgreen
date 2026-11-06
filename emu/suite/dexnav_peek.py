@@ -2,10 +2,10 @@
 
 Usage: py -3 emu/suite/dexnav_peek.py <rom.gba> <rom.elf> <out_dir> [searches]
 
-Gunk_DexNavTryStartBattle peeks at each roll (Gunk_PeekLandMonOfSpecies: the PID and IV total, without making the
-Pokemon), then puts the RNG back where the best one started and makes that one (Gunk_GenerateLandMonOfSpecies).
+Gunk_DexNavTryStartBattle peeks at each roll (Gunk_PeekWildMonOfSpecies: the PID and IV total, without making the
+Pokemon), then puts the RNG back where the best one started and makes that one (Gunk_GenerateWildMonOfSpecies).
 Exec hooks on both functions record each peek's starting RNG value and what it wrote to the caller's
-*personality / *ivTotal (read when the next call starts), and the RNG value the real roll starts from. For each
+roll->personality / roll->ivTotal (read when the next call starts), and the RNG value the real roll starts from. For each
 search: the real roll must start at the best peek's seed (most IVs, a shiny first, the first of equals), and the
 caught Pokemon must have that peek's PID and IV total. <searches> plain searches (search level 0) and as many chain
 searches (level 100, chain 40: 21 rolls, which run over several frames) on each of legality.py's places. The catches
@@ -26,7 +26,7 @@ HOOKS = (
     "local function rd(a) return memory.read_u32_le(a, 'System Bus') end "
     "local function close() local p = PK[#PK] if p and p.pa and not p.pid then "
     "p.pid = rd(p.pa) p.iv = memory.read_u8(p.ia, 'System Bus') end end "
-    "reg(function() close() PK[#PK + 1] = {seed = rd(RNG), pa = emu.getregister('R1'), ia = emu.getregister('R2')} end, "
+    "reg(function() close() PK[#PK + 1] = {seed = rd(RNG), pa = emu.getregister('R2'), ia = emu.getregister('R2') + 9} end, "
     "PEEK, 'gunk_peek') "
     "reg(function() close() PK[#PK + 1] = {gen = true, seed = rd(RNG)} end, GEN, 'gunk_gen') return 'ok'"
 )
@@ -77,8 +77,8 @@ def main():
         for place in PLACES:
             c.start(place)
             g = c.g
-            hooks = HOOKS.replace("RNG", str(g.a("gRngValue"))).replace("PEEK", str(g.a("Gunk_PeekLandMonOfSpecies") & ~1))
-            assert g.cmd("lua " + hooks.replace("GEN", str(g.a("Gunk_GenerateLandMonOfSpecies") & ~1)))[0] == "lua ok"
+            hooks = HOOKS.replace("RNG", str(g.a("gRngValue"))).replace("PEEK", str(g.a("Gunk_PeekWildMonOfSpecies") & ~1))
+            assert g.cmd("lua " + hooks.replace("GEN", str(g.a("Gunk_GenerateWildMonOfSpecies") & ~1)))[0] == "lua ok"
             for kind, kw in [("plain", {}), ("chain", {"level": 100, "chain": 40})]:
                 for _ in range(n):
                     for _ in range(3):

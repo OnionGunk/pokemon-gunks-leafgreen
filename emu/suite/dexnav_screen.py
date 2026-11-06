@@ -28,13 +28,37 @@ SB2_DEX_OWNED = 0x18 + 0x10
 SB2_DEX_SEEN = 0x18 + 0x44
 SB1_SEEN1 = 0x05F8
 SB1_SEEN2 = 0x3A18
-# Route 13's list: (species, area) with 0 land and 1 water
-EXPECTED = {(48, 0), (16, 0), (43, 0), (132, 0), (17, 0), (44, 0), (72, 1)}
-SEEN = {16, 43, 72}  # Pidgey, Oddish, Tentacool
+# Route 13's list: (species, area) with 0 land and 1 water, from the game's own table (route13_list). Seen: Pidgey,
+# Tentacool and a third, the game's grass Pokemon there that the other game lacks (FireRed Oddish, LeafGreen Bellsprout)
+EXPECTED = set()
+SEEN = set()
+GAME_SEEN = {"FireRed": 43, "LeafGreen": 69}
 CAUGHT = {16}  # Pidgey
 COL_BALL = 14  # DXCOL_BALL (src/data/gunk_dexnav_skin.h)
 MAX_SPRITES = 64
 WATER_BEHAVIORS = {0x10, 0x11, 0x12, 0x15}
+
+
+def rom_game(rom):
+    code = open(rom, "rb").read(0xB0)[0xAC:0xB0]
+    return {b"BPRE": "FireRed", b"BPGE": "LeafGreen"}[code]
+
+
+def route13_list(game):
+    """{(species, area)} for Route 13 in src/data/wild_encounters.json, this game's tables."""
+    import json
+    ids = {}
+    for line in open(os.path.join(REPO, "include/constants/species.h")):
+        p = line.split()
+        if len(p) >= 3 and p[0] == "#define" and p[1].startswith("SPECIES_") and p[2].isdigit():
+            ids[p[1]] = int(p[2])
+    out = set()
+    for group in json.load(open(os.path.join(REPO, "src/data/wild_encounters.json")))["wild_encounter_groups"]:
+        for e in group["encounters"]:
+            if e["map"] == "MAP_ROUTE13" and e["base_label"].endswith(game):
+                for area, key in ((0, "land_mons"), (1, "water_mons")):
+                    out |= {(ids[m["species"]], area) for m in e.get(key, {}).get("mons", [])}
+    return out
 
 
 def map_behaviors():
@@ -165,6 +189,9 @@ class Screen(Features):
 
 def main():
     rom, elf = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
+    game = rom_game(rom)
+    EXPECTED.update(route13_list(game))
+    SEEN.update({16, 72, GAME_SEEN[game]})
     t = Screen(rom, elf)
     g = t.g
     t0 = time.time()

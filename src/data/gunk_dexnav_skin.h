@@ -22,26 +22,27 @@ enum {
     DXCOL_TAB_OFF_TEXT,
 };
 
-#if GAME_VERSION == VERSION_LEAFGREEN
-// LeafGreen: leaf greens and a pale meadow backdrop
+#ifdef LEAFGREEN
+// LeafGreen (docs/design/dexnav_leafgreen.md): the title screen's leaf greens on a pale meadow, FRLG's menu cream for
+// the cells, an orange cursor that stands out on the greens, and a green-topped ball for caught
 static const u16 sDexNavSkinPalette[16] =
 {
-    [DXCOL_TRANSPARENT]  = RGB(26, 30, 24),
-    [DXCOL_WHITE]        = RGB(31, 31, 31),
-    [DXCOL_TEXT]         = RGB(7, 8, 7),
-    [DXCOL_SHADOW]       = RGB(21, 22, 21),
-    [DXCOL_BACKDROP]     = RGB(26, 30, 24),
-    [DXCOL_TITLE]        = RGB(6, 19, 9),
-    [DXCOL_TITLE_SHADOW] = RGB(2, 10, 4),
-    [DXCOL_LABEL]        = RGB(5, 15, 8),
-    [DXCOL_CELL]         = RGB(31, 31, 29),
-    [DXCOL_CELL_EDGE]    = RGB(17, 23, 16),
-    [DXCOL_EMPTY]        = RGB(23, 28, 21),
-    [DXCOL_CURSOR]       = RGB(23, 31, 14),
-    [DXCOL_CURSOR_EDGE]  = RGB(8, 20, 6),
-    [DXCOL_TAB_OFF]      = RGB(19, 25, 18),
-    [DXCOL_BALL]         = RGB(28, 5, 5),
-    [DXCOL_TAB_OFF_TEXT] = RGB(9, 13, 9),
+    [DXCOL_TRANSPARENT]  = RGB(25, 29, 22),
+    [DXCOL_WHITE]        = RGB(31, 31, 29),
+    [DXCOL_TEXT]         = RGB(7, 7, 7),
+    [DXCOL_SHADOW]       = RGB(27, 27, 25),
+    [DXCOL_BACKDROP]     = RGB(25, 29, 22),
+    [DXCOL_TITLE]        = RGB(2, 15, 4),
+    [DXCOL_TITLE_SHADOW] = RGB(1, 9, 2),
+    [DXCOL_LABEL]        = RGB(5, 18, 7),
+    [DXCOL_CELL]         = RGB(28, 30, 26),
+    [DXCOL_CELL_EDGE]    = RGB(17, 24, 15),
+    [DXCOL_EMPTY]        = RGB(15, 22, 13),
+    [DXCOL_CURSOR]       = RGB(31, 22, 15),
+    [DXCOL_CURSOR_EDGE]  = RGB(29, 13, 9),
+    [DXCOL_TAB_OFF]      = RGB(21, 26, 18),
+    [DXCOL_BALL]         = RGB(5, 22, 8),
+    [DXCOL_TAB_OFF_TEXT] = RGB(9, 14, 8),
 };
 #else
 // FireRed: the Pokedex's red bars on a warm cream backdrop

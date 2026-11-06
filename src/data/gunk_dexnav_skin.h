@@ -138,6 +138,6 @@ static const u8 sDexNavText_Chain[]       = _("Chain");
 static const u8 sDexNavText_ChainNone[]   = _("CHAIN  none yet");
 static const u8 sDexNavText_ChainOf[]     = _("CHAIN  ");
 static const u8 sDexNavText_Times[]       = _(" ×");
-static const u8 sDexNavText_NotSeenHint[] = _("Not seen yet: can't search for it.");
+static const u8 sDexNavText_NotSeenHint[] = _("Not seen yet: no search.");
 static const u8 sDexNavText_Footer[]      = _("{A_BUTTON}SEARCH NEARBY  {B_BUTTON}CLOSE");
 static const u8 sDexNavText_FooterTabs[]  = _("{L_BUTTON}{R_BUTTON}TABS");

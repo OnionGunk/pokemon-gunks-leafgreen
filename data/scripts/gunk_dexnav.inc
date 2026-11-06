@@ -3,6 +3,7 @@
 EventScript_GunkDexNav::
 	lockall
 	special Gunk_DexNavPrepareList
+	goto_if_eq VAR_RESULT, 255, EventScript_GunkDexNavSafari @ DEXNAV_LIST_SAFARI
 	goto_if_eq VAR_RESULT, 0, EventScript_GunkDexNavNoMons
 	fadescreen FADE_TO_BLACK
 	special Gunk_ShowDexNavScreen
@@ -19,6 +20,12 @@ EventScript_GunkDexNavHidingInWater::
 	msgbox Text_GunkDexNavHidingInWater
 EventScript_GunkDexNavEnd::
 	closemessage
+	releaseall
+	end
+
+@ The Safari Zone's Pokemon are caught with Safari Balls only (src/gunk_dexnav.c, Gunk_DexNavPrepareList)
+EventScript_GunkDexNavSafari::
+	msgbox Text_GunkDexNavSafari
 	releaseall
 	end
 
@@ -57,6 +64,10 @@ Text_GunkDexNavHidingInWater::
 	.string "The water is rippling nearby…\n"
 	.string "Something is hiding there!\p"
 	.string "{STR_VAR_1}'s search level: {STR_VAR_2}$"
+
+Text_GunkDexNavSafari::
+	.string "DEXNAV: Searches don't work in the\n"
+	.string "SAFARI ZONE. Use SAFARI BALLS!$"
 
 Text_GunkDexNavNoMons::
 	.string "DEXNAV: No POKéMON live in the\n"

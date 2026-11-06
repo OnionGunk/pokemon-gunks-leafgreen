@@ -277,17 +277,23 @@ static void AddAreaToList(u8 area)
 }
 
 // special: lists the map's grass Pokemon, then its surfing Pokemon, then its fishing and Rock Smash Pokemon (the
-// OTHER tab: shown, not searched for), for the DexNav screen; VAR_RESULT = how many
+// OTHER tab: shown, not searched for), for the DexNav screen; VAR_RESULT = how many, or DEXNAV_LIST_SAFARI in the
+// Safari Zone. Its Pokemon are caught with Safari Balls only: a DexNav battle would be a normal one with normal
+// balls, and its catches illegal (Safari Zone met location, any ball). The item already refuses it
+// (src/item_use.c, FieldUseFunc_DexNav); this, the search's start and its battle refuse it again, should anything
+// else start the DexNav's script there.
 void Gunk_DexNavPrepareList(void)
 {
     sListCount = 0;
-    if (!GetSafariZoneFlag())
+    if (GetSafariZoneFlag())
     {
-        AddAreaToList(WILD_AREA_LAND);
-        AddAreaToList(WILD_AREA_WATER);
-        AddAreaToList(WILD_AREA_FISHING);
-        AddAreaToList(WILD_AREA_ROCKS);
+        gSpecialVar_Result = DEXNAV_LIST_SAFARI;
+        return;
     }
+    AddAreaToList(WILD_AREA_LAND);
+    AddAreaToList(WILD_AREA_WATER);
+    AddAreaToList(WILD_AREA_FISHING);
+    AddAreaToList(WILD_AREA_ROCKS);
     gSpecialVar_Result = sListCount;
 }
 
@@ -489,7 +495,7 @@ void Gunk_DexNavStartSearch(void)
     u16 species;
 
     gSpecialVar_Result = FALSE;
-    if (gSpecialVar_0x8005 >= sListCount)
+    if (gSpecialVar_0x8005 >= sListCount || GetSafariZoneFlag())
         return;
     // only grass and water Pokemon are searched for: the OTHER tab's fishing and Rock Smash ones are shown only
     if (sListArea[gSpecialVar_0x8005] != WILD_AREA_LAND && sListArea[gSpecialVar_0x8005] != WILD_AREA_WATER)
@@ -591,7 +597,7 @@ bool8 Gunk_DexNavTryStartBattle(void)
     s16 x, y;
     bool8 haveRoll;
 
-    if (!sSearch.active || sSearch.inBattle || !IsOnSearchMap())
+    if (!sSearch.active || sSearch.inBattle || !IsOnSearchMap() || GetSafariZoneFlag())
         return FALSE;
 
     PlayerGetDestCoords(&x, &y);

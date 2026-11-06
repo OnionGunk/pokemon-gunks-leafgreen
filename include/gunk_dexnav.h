@@ -24,6 +24,8 @@ enum {
     DEXNAV_METHOD_ROCK_SMASH,
 };
 #define DEXNAV_LIST_MAX (LAND_WILD_COUNT + WATER_WILD_COUNT + ROCK_WILD_COUNT + FISH_WILD_COUNT)
+// Gunk_DexNavPrepareList's VAR_RESULT in the Safari Zone (data/scripts/gunk_dexnav.inc: 255)
+#define DEXNAV_LIST_SAFARI 255
 u8 Gunk_DexNavListTab(u8 i);
 u8 Gunk_DexNavListMethod(u8 i);
 void Gunk_DexNavLevelRange(u8 i, u8 *minLevel, u8 *maxLevel);

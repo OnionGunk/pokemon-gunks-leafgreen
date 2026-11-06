@@ -8,6 +8,24 @@ void Gunk_DexNavPrepareList(void);
 u8 Gunk_DexNavListCount(void);
 u16 Gunk_DexNavListSpecies(u8 i);
 u8 Gunk_DexNavListArea(u8 i);
+// The screen's tabs, and how each Pokemon is found (the OTHER tab's are shown, not searched for)
+enum {
+    DEXNAV_TAB_LAND,
+    DEXNAV_TAB_WATER,
+    DEXNAV_TAB_OTHER,
+    DEXNAV_TAB_COUNT,
+};
+enum {
+    DEXNAV_METHOD_GRASS,
+    DEXNAV_METHOD_SURF,
+    DEXNAV_METHOD_OLD_ROD,
+    DEXNAV_METHOD_GOOD_ROD,
+    DEXNAV_METHOD_SUPER_ROD,
+    DEXNAV_METHOD_ROCK_SMASH,
+};
+#define DEXNAV_LIST_MAX (LAND_WILD_COUNT + WATER_WILD_COUNT + ROCK_WILD_COUNT + FISH_WILD_COUNT)
+u8 Gunk_DexNavListTab(u8 i);
+u8 Gunk_DexNavListMethod(u8 i);
 void Gunk_DexNavLevelRange(u8 i, u8 *minLevel, u8 *maxLevel);
 u16 Gunk_DexNavChainSpecies(void);
 u8 Gunk_DexNavSearchLevel(u16 species);

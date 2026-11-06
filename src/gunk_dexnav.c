@@ -46,7 +46,7 @@
 #define SEARCH_FRAMES 600 // a search lasts 10 seconds of the player being free to walk
 #define PATCH_SHAKE_FRAMES 30 // the patch shakes twice a second
 
-#define LIST_MAX (LAND_WILD_COUNT + WATER_WILD_COUNT)
+#define LIST_MAX DEXNAV_LIST_MAX
 
 struct DexNavSearch
 {
@@ -69,6 +69,7 @@ struct DexNavSearch
 static EWRAM_DATA struct DexNavSearch sSearch = {0};
 static EWRAM_DATA u16 sListSpecies[LIST_MAX] = {0};
 static EWRAM_DATA u8 sListArea[LIST_MAX] = {0};
+static EWRAM_DATA u8 sListMethod[LIST_MAX] = {0}; // DEXNAV_METHOD_*
 static EWRAM_DATA u8 sListCount = 0;
 
 static const u8 sText_Unseen[] = _("?????");
@@ -217,10 +218,34 @@ static bool8 IsOnSearchMap(void)
     return sSearch.mapGroup == gSaveBlock1Ptr->location.mapGroup && sSearch.mapNum == gSaveBlock1Ptr->location.mapNum;
 }
 
+static u8 AreaSlotCount(u8 area)
+{
+    switch (area)
+    {
+    case WILD_AREA_WATER:   return WATER_WILD_COUNT;
+    case WILD_AREA_ROCKS:   return ROCK_WILD_COUNT;
+    case WILD_AREA_FISHING: return FISH_WILD_COUNT;
+    default:                return LAND_WILD_COUNT;
+    }
+}
+
+// How the Pokemon in <area>'s <slot> is found. The fishing table is shared by the rods: slots 0-1 the Old Rod's, 2-4
+// the Good Rod's, 5-9 the Super Rod's (ChooseWildMonIndex_Fishing).
+static u8 SlotMethod(u8 area, u8 slot)
+{
+    switch (area)
+    {
+    case WILD_AREA_WATER:   return DEXNAV_METHOD_SURF;
+    case WILD_AREA_ROCKS:   return DEXNAV_METHOD_ROCK_SMASH;
+    case WILD_AREA_FISHING: return slot < 2 ? DEXNAV_METHOD_OLD_ROD : slot < 5 ? DEXNAV_METHOD_GOOD_ROD : DEXNAV_METHOD_SUPER_ROD;
+    default:                return DEXNAV_METHOD_GRASS;
+    }
+}
+
 static void AddAreaToList(u8 area)
 {
     const struct WildPokemonInfo *info = Gunk_GetWildMonsInfo(area);
-    u8 count = area == WILD_AREA_WATER ? WATER_WILD_COUNT : LAND_WILD_COUNT;
+    u8 count = AreaSlotCount(area);
     u8 i, j;
 
     if (info == NULL)
@@ -240,12 +265,14 @@ static void AddAreaToList(u8 area)
         {
             sListSpecies[sListCount] = species;
             sListArea[sListCount] = area;
+            sListMethod[sListCount] = SlotMethod(area, i); // a Pokemon on more than one rod: the first it's on
             sListCount++;
         }
     }
 }
 
-// special: lists the map's grass Pokemon, then its surfing Pokemon, for the DexNav screen; VAR_RESULT = how many
+// special: lists the map's grass Pokemon, then its surfing Pokemon, then its fishing and Rock Smash Pokemon (the
+// OTHER tab: shown, not searched for), for the DexNav screen; VAR_RESULT = how many
 void Gunk_DexNavPrepareList(void)
 {
     sListCount = 0;
@@ -253,6 +280,8 @@ void Gunk_DexNavPrepareList(void)
     {
         AddAreaToList(WILD_AREA_LAND);
         AddAreaToList(WILD_AREA_WATER);
+        AddAreaToList(WILD_AREA_FISHING);
+        AddAreaToList(WILD_AREA_ROCKS);
     }
     gSpecialVar_Result = sListCount;
 }
@@ -272,6 +301,22 @@ u8 Gunk_DexNavListArea(u8 i)
     return i < sListCount ? sListArea[i] : WILD_AREA_LAND;
 }
 
+// The screen's tab for list row <i>: LAND, WATER, or OTHER (fishing and Rock Smash)
+u8 Gunk_DexNavListTab(u8 i)
+{
+    switch (Gunk_DexNavListArea(i))
+    {
+    case WILD_AREA_LAND:  return DEXNAV_TAB_LAND;
+    case WILD_AREA_WATER: return DEXNAV_TAB_WATER;
+    default:              return DEXNAV_TAB_OTHER;
+    }
+}
+
+u8 Gunk_DexNavListMethod(u8 i)
+{
+    return i < sListCount ? sListMethod[i] : DEXNAV_METHOD_GRASS;
+}
+
 // The levels list row <i>'s Pokemon comes at in its area: the lowest and highest of its encounter slots
 void Gunk_DexNavLevelRange(u8 i, u8 *minLevel, u8 *maxLevel)
 {
@@ -282,14 +327,15 @@ void Gunk_DexNavLevelRange(u8 i, u8 *minLevel, u8 *maxLevel)
     if (i >= sListCount)
         return;
     info = Gunk_GetWildMonsInfo(sListArea[i]);
-    count = sListArea[i] == WILD_AREA_WATER ? WATER_WILD_COUNT : LAND_WILD_COUNT;
+    count = AreaSlotCount(sListArea[i]);
     if (info == NULL)
         return;
     for (slot = 0; slot < count; slot++)
     {
         const struct WildPokemon *mon = &info->wildPokemon[slot];
 
-        if (mon->species != sListSpecies[i])
+        // a fishing Pokemon's levels on its rod only
+        if (mon->species != sListSpecies[i] || SlotMethod(sListArea[i], slot) != sListMethod[i])
             continue;
         if (*minLevel == 0 || mon->minLevel < *minLevel)
             *minLevel = mon->minLevel;
@@ -422,6 +468,9 @@ void Gunk_DexNavStartSearch(void)
 
     gSpecialVar_Result = FALSE;
     if (gSpecialVar_0x8005 >= sListCount)
+        return;
+    // only grass and water Pokemon are searched for: the OTHER tab's fishing and Rock Smash ones are shown only
+    if (sListArea[gSpecialVar_0x8005] != WILD_AREA_LAND && sListArea[gSpecialVar_0x8005] != WILD_AREA_WATER)
         return;
     species = sListSpecies[gSpecialVar_0x8005];
     gSpecialVar_0x8006 = sListArea[gSpecialVar_0x8005] == WILD_AREA_WATER;

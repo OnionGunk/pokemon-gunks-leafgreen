@@ -93,6 +93,7 @@ static const u8 sDexNavText_Title[]       = _("DEXNAV");
 static const u8 sDexNavText_Caught[]      = _("CAUGHT ");
 static const u8 sDexNavText_Land[]        = _("LAND");
 static const u8 sDexNavText_Water[]       = _("WATER");
+static const u8 sDexNavText_Other[]       = _("OTHER");
 static const u8 sDexNavText_Unseen[]      = _("?????");
 static const u8 sDexNavText_Question[]    = _("?");
 static const u8 sDexNavText_StatusCaught[]  = _("Caught");
@@ -101,6 +102,35 @@ static const u8 sDexNavText_StatusNotSeen[] = _("Not seen yet");
 static const u8 sDexNavText_Found[]       = _("Found");
 static const u8 sDexNavText_TallGrass[]   = _("Tall grass");
 static const u8 sDexNavText_Surfing[]     = _("Surfing");
+static const u8 sDexNavText_OldRod[] = _("Old Rod");
+static const u8 sDexNavText_GoodRod[] = _("Good Rod");
+static const u8 sDexNavText_SuperRod[] = _("Super Rod");
+static const u8 sDexNavText_RockSmash[] = _("Rock Smash");
+static const u8 sDexNavText_HintOldRod[] = _("Old Rod: fish here.");
+static const u8 sDexNavText_HintGoodRod[] = _("Good Rod: fish here.");
+static const u8 sDexNavText_HintSuperRod[] = _("Super Rod: fish here.");
+static const u8 sDexNavText_HintRockSmash[] = _("Rock Smash: break rocks.");
+static const u8 sDexNavText_None[] = _("");
+// "Found", by DEXNAV_METHOD_* (include/gunk_dexnav.h)
+static const u8 *const sDexNavText_Methods[] =
+{
+    [DEXNAV_METHOD_GRASS]      = sDexNavText_TallGrass,
+    [DEXNAV_METHOD_SURF]       = sDexNavText_Surfing,
+    [DEXNAV_METHOD_OLD_ROD]    = sDexNavText_OldRod,
+    [DEXNAV_METHOD_GOOD_ROD]   = sDexNavText_GoodRod,
+    [DEXNAV_METHOD_SUPER_ROD]  = sDexNavText_SuperRod,
+    [DEXNAV_METHOD_ROCK_SMASH] = sDexNavText_RockSmash,
+};
+// The OTHER tab's hint on A, by DEXNAV_METHOD_*
+static const u8 *const sDexNavText_MethodHints[] =
+{
+    [DEXNAV_METHOD_GRASS]      = sDexNavText_None,
+    [DEXNAV_METHOD_SURF]       = sDexNavText_None,
+    [DEXNAV_METHOD_OLD_ROD]    = sDexNavText_HintOldRod,
+    [DEXNAV_METHOD_GOOD_ROD]   = sDexNavText_HintGoodRod,
+    [DEXNAV_METHOD_SUPER_ROD]  = sDexNavText_HintSuperRod,
+    [DEXNAV_METHOD_ROCK_SMASH] = sDexNavText_HintRockSmash,
+};
 static const u8 sDexNavText_Level[]       = _("Level");
 static const u8 sDexNavText_Lv[]          = _("Lv. ");
 static const u8 sDexNavText_SearchLv[]    = _("Search Lv.");
@@ -110,4 +140,4 @@ static const u8 sDexNavText_ChainOf[]     = _("CHAIN  ");
 static const u8 sDexNavText_Times[]       = _(" ×");
 static const u8 sDexNavText_NotSeenHint[] = _("Not seen yet: can't search for it.");
 static const u8 sDexNavText_Footer[]      = _("{A_BUTTON}SEARCH NEARBY  {B_BUTTON}CLOSE");
-static const u8 sDexNavText_FooterTabs[]  = _("{L_BUTTON}{R_BUTTON}LAND/WATER");
+static const u8 sDexNavText_FooterTabs[]  = _("{L_BUTTON}{R_BUTTON}TABS");

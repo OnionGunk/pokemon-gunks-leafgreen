@@ -575,6 +575,10 @@ const struct WildPokemonInfo *Gunk_GetWildMonsInfo(u8 area)
         return NULL;
     if (area == WILD_AREA_WATER)
         return gWildMonHeaders[headerId].waterMonsInfo;
+    if (area == WILD_AREA_ROCKS)
+        return gWildMonHeaders[headerId].rockSmashMonsInfo;
+    if (area == WILD_AREA_FISHING)
+        return gWildMonHeaders[headerId].fishingMonsInfo;
     return gWildMonHeaders[headerId].landMonsInfo;
 }
 

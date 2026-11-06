@@ -33,6 +33,11 @@ SB1_SEEN2 = 0x3A18
 EXPECTED = set()
 SEEN = set()
 GAME_SEEN = {"FireRed": 43, "LeafGreen": 69}
+SPECIES_MAGIKARP = 129  # seen too: on the OTHER tab (Old Rod), A gives its hint instead of a search
+# struct DexNavScreen's sizes (src/gunk_dexnav_screen.c): DEXNAV_LIST_MAX and DEXNAV_TAB_COUNT (include/gunk_dexnav.h)
+LIST_MAX = 12 + 5 + 5 + 10
+NUM_TABS = 3
+AREA_TAB = {0: 0, 1: 1, 2: 2, 3: 2}  # the list's WILD_AREA_* (land, water, rocks, fishing) to its tab
 CAUGHT = {16}  # Pidgey
 COL_BALL = 14  # DXCOL_BALL (src/data/gunk_dexnav_skin.h)
 MAX_SPRITES = 64
@@ -56,7 +61,7 @@ def route13_list(game):
     for group in json.load(open(os.path.join(REPO, "src/data/wild_encounters.json")))["wild_encounter_groups"]:
         for e in group["encounters"]:
             if e["map"] == "MAP_ROUTE13" and e["base_label"].endswith(game):
-                for area, key in ((0, "land_mons"), (1, "water_mons")):
+                for area, key in ((0, "land_mons"), (1, "water_mons"), (2, "rock_smash_mons"), (3, "fishing_mons")):
                     out |= {(ids[m["species"]], area) for m in e.get(key, {}).get("mons", [])}
     return out
 
@@ -127,9 +132,11 @@ class Screen(Features):
         ptr = g.u32(g.a("sDexNavScreen"))
         if not ptr:
             return None
-        raw = bytes.fromhex(g.cmd(f"read {ptr} 91")[0].replace(" ", ""))
-        return {"count": raw[0], "cursor": raw[1], "tab": raw[2], "icons": raw[4:21], "x": raw[21:38],
-                "y": raw[38:55], "row": raw[55:72], "col": raw[72:89], "tabs": raw[89:91]}
+        n = LIST_MAX
+        raw = bytes.fromhex(g.cmd(f"read {ptr} {4 + 5 * n + NUM_TABS}")[0].replace(" ", ""))
+        arrays = [raw[4 + k * n:4 + (k + 1) * n] for k in range(5)]
+        return {"count": raw[0], "cursor": raw[1], "tab": raw[2], "icons": arrays[0], "x": arrays[1],
+                "y": arrays[2], "row": arrays[3], "col": arrays[4], "tabs": raw[4 + 5 * n:4 + 5 * n + NUM_TABS]}
 
     def goto_cell(self, target, area):
         """Move the cursor to list row <target> (in tab <area>): R to its tab, then Up/Down, then Left/Right."""
@@ -191,7 +198,7 @@ def main():
     rom, elf = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
     game = rom_game(rom)
     EXPECTED.update(route13_list(game))
-    SEEN.update({16, 72, GAME_SEEN[game]})
+    SEEN.update({16, 72, GAME_SEEN[game], SPECIES_MAGIKARP})
     t = Screen(rom, elf)
     g = t.g
     t0 = time.time()
@@ -226,7 +233,7 @@ def main():
 
         wrong = []
         for i, (sp, area) in enumerate(listed):
-            if area != s["tab"]:
+            if AREA_TAB[area] != s["tab"]:
                 continue
             ball = t.grid_pixel(s["x"][i] + 32 - 11 + 3, s["y"][i] + 3 + 1) == COL_BALL
             if ball != (sp in CAUGHT):
@@ -234,7 +241,8 @@ def main():
         t.record("a ball mark on the caught Pokemon only", not wrong, f"wrong {wrong}")
 
         water = [i for i, (sp, area) in enumerate(listed) if area == 1]
-        t.record("LAND and WATER tabs", s["tab"] == 0 and list(s["tabs"]) == [6, 1]
+        other = [i for i, (sp, area) in enumerate(listed) if area in (2, 3)]
+        t.record("LAND, WATER and OTHER tabs", s["tab"] == 0 and list(s["tabs"]) == [6, 1, len(other)]
                  and all(s["row"][i] == 0 and s["col"][i] == 0 for i in water),
                  f"tab {s['tab']}, tab counts {list(s['tabs'])}, "
                  f"water cells {[(s['row'][i], s['col'][i]) for i in water]}")
@@ -256,6 +264,21 @@ def main():
         back = t.screen()
         t.record("L/R switch between LAND and WATER", r["tab"] == 1 and r["cursor"] == water[0] and back["tab"] == 0,
                  f"after R tab {r['tab']} cursor {r['cursor']}, after L tab {back['tab']}")
+
+        # OTHER: R twice; the fishing Pokemon are shown, and A on a seen one gives how to find it, no search
+        g.cmd("press R 4", "wait 30", "press R 4", "wait 30")
+        o = t.screen()
+        t.shot("dexnav_screen_other_tab.png")
+        magikarp = [i for i in other if listed[i][0] == SPECIES_MAGIKARP]
+        moved = bool(magikarp) and t.goto_cell(magikarp[0], 2)
+        g.cmd("press A 4", "wait 30")
+        hint = t.screen()
+        t.shot("dexnav_screen_other_hint.png")
+        t.record("OTHER: fishing and Rock Smash Pokemon, shown not searched", o["tab"] == 2 and o["cursor"] in other
+                 and moved and hint is not None and hint["tab"] == 2 and not t.search()["active"],
+                 f"tab {o['tab']} cursor {o['cursor']} (other {other}), Magikarp {magikarp}, after A: screen "
+                 f"{hint is not None}, search {t.search()['active']}")
+        g.cmd("press R 4", "wait 30")  # back round to LAND
 
         g.cmd("press B 4")
         ok = t.back_in_field()

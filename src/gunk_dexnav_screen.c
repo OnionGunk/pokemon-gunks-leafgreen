@@ -46,9 +46,10 @@
 #define GRID_COLUMNS 4
 #define GRID_ROWS 3
 #define CELL_SIZE 32
-#define LIST_MAX (LAND_WILD_COUNT + WATER_WILD_COUNT)
+#define LIST_MAX DEXNAV_LIST_MAX
 #define NO_ROW 127
-#define NUM_TABS 2 // WILD_AREA_LAND, WILD_AREA_WATER
+#define NUM_TABS DEXNAV_TAB_COUNT // LAND, WATER, OTHER
+#define TAB_WIDTH 40
 
 #define FRAME_BASE_TILE 0x3E0
 #define FRAME_PAL 14
@@ -68,7 +69,7 @@ struct DexNavScreen
 {
     u8 count;
     u8 cursor; // list row
-    u8 tab;    // WILD_AREA_LAND or WILD_AREA_WATER
+    u8 tab;    // DEXNAV_TAB_*
     u8 state;
     u8 iconSpriteIds[LIST_MAX];
     u8 cellX[LIST_MAX]; // pixels, in the grid window
@@ -183,7 +184,7 @@ static void LayOutCells(void)
 
     for (i = 0; i < sDexNavScreen->count; i++)
     {
-        u8 tab = Gunk_DexNavListArea(i);
+        u8 tab = Gunk_DexNavListTab(i);
         u8 n = sDexNavScreen->tabCount[tab]++;
 
         sDexNavScreen->row[i] = n / GRID_COLUMNS;
@@ -297,12 +298,13 @@ static void DrawTabs(void)
     for (tab = 0; tab < NUM_TABS; tab++)
     {
         bool8 on = tab == sDexNavScreen->tab;
-        u16 x = 2 + tab * 50;
-        const u8 *name = tab == WILD_AREA_WATER ? sDexNavText_Water : sDexNavText_Land;
+        u16 x = 2 + tab * (TAB_WIDTH + 2);
+        const u8 *name = tab == DEXNAV_TAB_WATER ? sDexNavText_Water
+                       : tab == DEXNAV_TAB_OTHER ? sDexNavText_Other : sDexNavText_Land;
 
-        FillWindowPixelRect(WIN_TABS, PIXEL_FILL(on ? DXCOL_WHITE : DXCOL_TAB_OFF), x, 2, 48, 14);
-        FillWindowPixelRect(WIN_TABS, PIXEL_FILL(on ? DXCOL_LABEL : DXCOL_TAB_OFF), x, 2, 48, 2);
-        AddTextPrinterParameterized3(WIN_TABS, FONT_SMALL, x + (48 - GetStringWidth(FONT_SMALL, name, 0)) / 2, 4,
+        FillWindowPixelRect(WIN_TABS, PIXEL_FILL(on ? DXCOL_WHITE : DXCOL_TAB_OFF), x, 2, TAB_WIDTH, 14);
+        FillWindowPixelRect(WIN_TABS, PIXEL_FILL(on ? DXCOL_LABEL : DXCOL_TAB_OFF), x, 2, TAB_WIDTH, 2);
+        AddTextPrinterParameterized3(WIN_TABS, FONT_SMALL, x + (TAB_WIDTH - GetStringWidth(FONT_SMALL, name, 0)) / 2, 4,
                                      on ? sDexNavColors_TabOn : sDexNavColors_TabOff, TEXT_SKIP_DRAW, name);
     }
     PutWindowTilemap(WIN_TABS);
@@ -322,7 +324,7 @@ static void DrawGrid(void)
         u16 species = Gunk_DexNavListSpecies(i);
         u16 x = sDexNavScreen->cellX[i], y = sDexNavScreen->cellY[i];
 
-        if (Gunk_DexNavListArea(i) != sDexNavScreen->tab)
+        if (Gunk_DexNavListTab(i) != sDexNavScreen->tab)
             continue;
         if (i == sDexNavScreen->cursor)
             DrawCellBox(x, y, DXCOL_CURSOR, DXCOL_CURSOR_EDGE);
@@ -402,8 +404,7 @@ static void DrawInfo(void)
     AddTextPrinterParameterized3(WIN_INFO, FONT_SMALL, 2, 17, sDexNavColors_Label, TEXT_SKIP_DRAW, status);
     FillWindowPixelRect(WIN_INFO, PIXEL_FILL(DXCOL_SHADOW), 2, 31, 92, 1);
 
-    PrintInfoLine(36, sDexNavText_Found,
-                  Gunk_DexNavListArea(sDexNavScreen->cursor) == WILD_AREA_WATER ? sDexNavText_Surfing : sDexNavText_TallGrass);
+    PrintInfoLine(36, sDexNavText_Found, sDexNavText_Methods[Gunk_DexNavListMethod(sDexNavScreen->cursor)]);
 
     Gunk_DexNavLevelRange(sDexNavScreen->cursor, &minLevel, &maxLevel);
     end = StringCopy(gStringVar4, sDexNavText_Lv);
@@ -429,7 +430,8 @@ static void DrawFooter(void)
 {
     FillWindowPixelBuffer(WIN_FOOTER, PIXEL_FILL(DXCOL_TITLE));
     AddTextPrinterParameterized3(WIN_FOOTER, FONT_SMALL, 4, 3, sDexNavColors_Title, TEXT_SKIP_DRAW, sDexNavText_Footer);
-    if (sDexNavScreen->tabCount[WILD_AREA_LAND] != 0 && sDexNavScreen->tabCount[WILD_AREA_WATER] != 0)
+    if ((sDexNavScreen->tabCount[DEXNAV_TAB_LAND] != 0) + (sDexNavScreen->tabCount[DEXNAV_TAB_WATER] != 0)
+      + (sDexNavScreen->tabCount[DEXNAV_TAB_OTHER] != 0) >= 2)
         AddTextPrinterParameterized3(WIN_FOOTER, FONT_SMALL, 240 - 4 - GetStringWidth(FONT_SMALL, sDexNavText_FooterTabs, 0), 3,
                                      sDexNavColors_Title, TEXT_SKIP_DRAW, sDexNavText_FooterTabs);
     PutWindowTilemap(WIN_FOOTER);
@@ -448,7 +450,7 @@ static void UpdateIcons(void)
         if (sDexNavScreen->iconSpriteIds[i] >= MAX_SPRITES)
             continue;
         sprite = &gSprites[sDexNavScreen->iconSpriteIds[i]];
-        sprite->invisible = Gunk_DexNavListArea(i) != sDexNavScreen->tab;
+        sprite->invisible = Gunk_DexNavListTab(i) != sDexNavScreen->tab;
         if (i == sDexNavScreen->cursor)
         {
             sprite->callback = SpriteCB_MonIcon;
@@ -494,7 +496,7 @@ static void CB2_InitDexNavScreen(void)
         sDexNavScreen->cursor = Gunk_DexNavDefaultRow();
         if (sDexNavScreen->cursor >= sDexNavScreen->count)
             sDexNavScreen->cursor = 0;
-        sDexNavScreen->tab = Gunk_DexNavListArea(sDexNavScreen->cursor);
+        sDexNavScreen->tab = Gunk_DexNavListTab(sDexNavScreen->cursor);
         LayOutCells();
         ResetBgsAndClearDma3BusyFlags(FALSE);
         InitBgsFromTemplates(0, sBgTemplates, ARRAY_COUNT(sBgTemplates));
@@ -557,7 +559,7 @@ static u8 FindCell(u8 tab, u8 row, u8 col)
     {
         u8 dist;
 
-        if (Gunk_DexNavListArea(i) != tab || sDexNavScreen->row[i] != row)
+        if (Gunk_DexNavListTab(i) != tab || sDexNavScreen->row[i] != row)
             continue;
         dist = sDexNavScreen->col[i] > col ? sDexNavScreen->col[i] - col : col - sDexNavScreen->col[i];
         if (dist < bestDist)
@@ -575,17 +577,30 @@ static void MoveDexNavCursor(u8 newCursor)
         return;
     PlaySE(SE_SELECT);
     sDexNavScreen->cursor = newCursor;
-    sDexNavScreen->tab = Gunk_DexNavListArea(newCursor);
+    sDexNavScreen->tab = Gunk_DexNavListTab(newCursor);
     Redraw();
 }
 
-// To the other tab, if it has any Pokemon: the cell in its first (or last) row closest to the cursor's column
-static void SwitchTab(bool8 toTop)
+// To the next tab (<step> 1) or the one before (-1) that has any Pokemon, wrapping around with <wrap> (L/R) or not
+// (Up/Down off the grid): the cell in its first (or last) row closest to the cursor's column
+static void SwitchTab(s8 step, bool8 wrap, bool8 toTop)
 {
-    u8 tab = sDexNavScreen->tab == WILD_AREA_LAND ? WILD_AREA_WATER : WILD_AREA_LAND;
-    u8 row;
+    s8 tab = sDexNavScreen->tab;
+    u8 row, i;
 
-    if (sDexNavScreen->tabCount[tab] == 0)
+    for (i = 1; i < NUM_TABS; i++)
+    {
+        tab += step;
+        if (tab < 0 || tab >= NUM_TABS)
+        {
+            if (!wrap)
+                return;
+            tab = tab < 0 ? NUM_TABS - 1 : 0;
+        }
+        if (sDexNavScreen->tabCount[tab] != 0)
+            break;
+    }
+    if (tab == sDexNavScreen->tab || sDexNavScreen->tabCount[tab] == 0)
         return;
     row = toTop ? 0 : (sDexNavScreen->tabCount[tab] - 1) / GRID_COLUMNS;
     MoveDexNavCursor(FindCell(tab, row, sDexNavScreen->col[sDexNavScreen->cursor]));
@@ -637,6 +652,13 @@ static void Task_DexNavScreen(u8 taskId)
             DrawHint(sDexNavText_NotSeenHint);
             return;
         }
+        if (tab == DEXNAV_TAB_OTHER)
+        {
+            // fishing and Rock Smash Pokemon are shown, not searched for: how to find it
+            PlaySE(SE_FAILURE);
+            DrawHint(sDexNavText_MethodHints[Gunk_DexNavListMethod(cursor)]);
+            return;
+        }
         PlaySE(SE_SELECT);
         ExitScreen(cursor);
     }
@@ -645,9 +667,13 @@ static void Task_DexNavScreen(u8 taskId)
         PlaySE(SE_SELECT);
         ExitScreen(NO_ROW);
     }
-    else if (JOY_NEW(L_BUTTON | R_BUTTON))
+    else if (JOY_NEW(R_BUTTON))
     {
-        SwitchTab(TRUE);
+        SwitchTab(1, TRUE, TRUE);
+    }
+    else if (JOY_NEW(L_BUTTON))
+    {
+        SwitchTab(-1, TRUE, TRUE);
     }
     else if (JOY_REPEAT(DPAD_LEFT))
     {
@@ -665,8 +691,8 @@ static void Task_DexNavScreen(u8 taskId)
     {
         if (row > 0)
             MoveDexNavCursor(FindCell(tab, row - 1, col));
-        else if (tab == WILD_AREA_WATER)
-            SwitchTab(FALSE);
+        else
+            SwitchTab(-1, FALSE, FALSE);
     }
     else if (JOY_REPEAT(DPAD_DOWN))
     {
@@ -674,7 +700,7 @@ static void Task_DexNavScreen(u8 taskId)
 
         if (next != NO_ROW)
             MoveDexNavCursor(next);
-        else if (tab == WILD_AREA_LAND)
-            SwitchTab(TRUE);
+        else
+            SwitchTab(1, FALSE, TRUE);
     }
 }

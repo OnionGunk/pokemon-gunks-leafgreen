@@ -42,6 +42,12 @@ sha1: 574fa542ffebb14be69902d1d36f1ec0a4afd71e
 
 Back up your save before updating.
 
+**PokeDaisy and other memory-reading companions:** these read the game's RAM at fixed addresses for retail
+LeafGreen. The ROM header keeps game code `BPGE` (so emulators pick the right save type) but its title is
+`GUNK LG`, and Gunk's code moves many addresses. Use a companion build that lists this exact release, or turn the
+companion off: a mismatched one can show wrong data or upset the game. Each release's addresses can be read from
+its build's `.sym` file.
+
 ## Build it
 
 Follow pret's [`INSTALL.md`](INSTALL.md), then run `make leafgreen`. `make compare_leafgreen` on the upstream

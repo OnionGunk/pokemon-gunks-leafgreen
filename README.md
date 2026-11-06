@@ -3,7 +3,7 @@
 A quality-of-life hack of Pokémon LeafGreen, built on [pret's FireRed/LeafGreen decompilation](https://github.com/pret/pokefirered).
 It keeps the game's difficulty and story as they are and takes the grind and friction out, for long playthroughs.
 
-**Latest release: [v1.3](../../releases/tag/v1.3)** (after [v1.2](../../releases/tag/v1.2) and [v1.0](../../releases/tag/v1.0)). Every
+**Latest release: [v1.4](../../releases/tag/v1.4)** (after [v1.3](../../releases/tag/v1.3), [v1.2](../../releases/tag/v1.2) and [v1.0](../../releases/tag/v1.0)). Every
 feature below passes its emulator check, and a test game beats every gym leader, the Elite Four and the Champion
 with the same story state as vanilla at each step; [`docs/GUNK_CHANGES.md`](docs/GUNK_CHANGES.md) lists each
 change and its test results, and `docs/RELEASE_NOTES_v*.md` each release.

@@ -3,8 +3,8 @@ The DexNav screen, Surf searches and held items, and a livelier follower in Pok�
 ## New
 
 - **The DexNav screen**: use the DexNav to open a screen of the area's Pokémon, in LeafGreen's own colours. Pick one
-  and press A to search for it. Pokémon you haven't seen show as a "?", and you can't search for them yet. A ball mark shows the ones you've
-  caught.
+  and press A to search for it. Pokémon you haven't seen show as a "?", and you can't search for them yet. A ball
+  mark shows the ones you've caught.
   - **LAND** and **WATER** tabs: search the grass, or search the water while you surf.
   - An **OTHER** tab lists the area's Pokémon you can't search for. They come from the Old, Good and Super Rods and
     from Rock Smash, and the screen tells you how to find each one.

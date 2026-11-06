@@ -396,6 +396,12 @@ bool8 Gunk_DexNavHeldItem(u16 *item)
     return TRUE;
 }
 
+// The field search bar: what the searched Pokemon holds
+u16 Gunk_DexNavSearchHeldItem(void)
+{
+    return sSearch.heldItem;
+}
+
 const struct GunkDexNavRoll *Gunk_DexNavSearchRoll(u16 *species)
 {
     if (!sSearch.active || sSearch.inBattle)

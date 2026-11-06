@@ -11,7 +11,9 @@
 #include "script.h"
 #include "string_util.h"
 #include "wild_encounter.h"
+#include "item.h"
 #include "constants/abilities.h"
+#include "constants/items.h"
 
 // Gunk's DexNav search bar: while a search runs and the player is free to walk, a bar across the top of the field
 // shows the Pokemon the patch holds (src/gunk_dexnav.c chooses it when the search starts): its name and level, a
@@ -58,6 +60,8 @@ static const u8 sText_Shiny[]    = _("SHINY");
 static const u8 sText_SearchLv[] = _("SEARCH LV.");
 static const u8 sText_Chain[]    = _("CHAIN");
 static const u8 sText_IVs[]      = _("IVs");
+static const u8 sText_Holds[]    = _("HOLDS");
+static const u8 sText_Nothing[]  = _("nothing");
 
 static const u8 sStar[7][8] =
 {
@@ -76,7 +80,7 @@ static const struct WindowTemplate sHudWindowTemplate =
     .tilemapLeft = 0,
     .tilemapTop = 0,
     .width = 30,
-    .height = 4,
+    .height = 5,
     .paletteNum = HUD_PAL,
     .baseBlock = HUD_BASE_TILE,
 };
@@ -110,14 +114,14 @@ static void PrintRight(u8 fontId, u16 right, u8 y, const u8 *colors, const u8 *s
     AddTextPrinterParameterized3(sHudWindowId, fontId, right - GetStringWidth(fontId, str, 0), y, colors, TEXT_SKIP_DRAW, str);
 }
 
-static void DrawHud(u16 species, const struct GunkDexNavRoll *roll)
+static void DrawHud(u16 species, const struct GunkDexNavRoll *roll, u16 heldItem)
 {
     u8 *end;
     u8 i, ability, x;
     s32 width;
 
     FillWindowPixelBuffer(sHudWindowId, PIXEL_FILL(HUDCOL_BG));
-    FillWindowPixelRect(sHudWindowId, PIXEL_FILL(HUDCOL_EDGE), 0, 31, 240, 1);
+    FillWindowPixelRect(sHudWindowId, PIXEL_FILL(HUDCOL_EDGE), 0, 39, 240, 1);
 
     // name, level, shiny
     end = StringCopy(gStringVar4, gSpeciesNames[species]);
@@ -157,6 +161,14 @@ static void DrawHud(u16 species, const struct GunkDexNavRoll *roll)
 
         DrawStar(x + i * 9 + 1, 20, iv == MAX_PER_STAT_IVS ? HUDCOL_STAR : HUDCOL_STAR_OFF);
     }
+
+    // what it holds
+    AddTextPrinterParameterized3(sHudWindowId, FONT_SMALL, 4, 28, sHudColors_Label, TEXT_SKIP_DRAW, sText_Holds);
+    x = 4 + GetStringWidth(FONT_SMALL, sText_Holds, 0) + 4;
+    if (heldItem != ITEM_NONE)
+        AddTextPrinterParameterized3(sHudWindowId, FONT_SMALL, x, 28, sHudColors_Text, TEXT_SKIP_DRAW, ItemId_GetName(heldItem));
+    else
+        AddTextPrinterParameterized3(sHudWindowId, FONT_SMALL, x, 28, sHudColors_Text, TEXT_SKIP_DRAW, sText_Nothing);
 }
 
 void Gunk_DexNavHudHide(void)
@@ -188,7 +200,7 @@ void Gunk_DexNavHudUpdate(void)
     if (sHudWindowId == WINDOW_NONE)
         return;
     LoadPalette(sHudPalette, BG_PLTT_ID(HUD_PAL), PLTT_SIZE_4BPP);
-    DrawHud(species, roll);
+    DrawHud(species, roll, Gunk_DexNavSearchHeldItem());
     PutWindowTilemap(sHudWindowId);
     CopyWindowToVram(sHudWindowId, COPYWIN_FULL);
     sHudShown = TRUE;

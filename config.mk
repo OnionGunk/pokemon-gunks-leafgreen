@@ -11,6 +11,10 @@ COMPARE       ?= 0
 
 KEEP_TEMPS    ?= 0
 
+# Gunk's: a release build (make firered_release / leafgreen_release) leaves out the emulator test hook
+# (src/gunk_test.c), in its own build folder and ROM (poke<game>_release.gba)
+RELEASE       ?= 0
+
 ifeq (modern,$(MAKECMDGOALS))
   MODERN := 1
 endif
@@ -50,6 +54,10 @@ endif
 # Modern GCC
 ifeq ($(MODERN),1)
   BUILD_NAME := $(BUILD_NAME)_modern
+endif
+
+ifeq ($(RELEASE),1)
+  BUILD_NAME := $(BUILD_NAME)_release
 endif
 
 # Language

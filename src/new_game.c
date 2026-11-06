@@ -150,7 +150,9 @@ void NewGameInitData(void)
     RunScriptImmediately(EventScript_ResetAllMapFlags);
     StringCopy(gSaveBlock1Ptr->rivalName, rivalName);
     ResetTrainerTowerResults();
+#if GUNK_TEST_HOOKS
     Gunk_ApplyTestSetup();
+#endif
 }
 
 static void ResetMiniGamesResults(void)

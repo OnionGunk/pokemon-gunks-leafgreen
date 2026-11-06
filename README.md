@@ -69,8 +69,10 @@ its build's `.sym` file.
 
 ## Build it
 
-Follow pret's [`INSTALL.md`](INSTALL.md), then run `make leafgreen`. `make compare_leafgreen` on the upstream
-code reproduces the retail ROM byte for byte. [`docs/ENGINE.md`](docs/ENGINE.md) explains why this hack uses
+Follow pret's [`INSTALL.md`](INSTALL.md), then run `make leafgreen_release` for the release ROM
+(`pokeleafgreen_release.gba`, which the patch is made from). `make leafgreen` builds the test ROM the emulator
+suite uses: the same game plus a test hook that sets up new games. `make compare_leafgreen` on the upstream code
+reproduces the retail ROM byte for byte. [`docs/ENGINE.md`](docs/ENGINE.md) explains why this hack uses
 the decompilation.
 
 ## Credits

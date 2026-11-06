@@ -8,7 +8,10 @@
 
 // Gunk's emulator test hook (emu/suite). The harness writes a setup here before choosing NEW GAME; at the end of
 // NewGameInitData the new save then starts with these Pokemon, items and flags. It does nothing unless the magic
-// value is set: EWRAM is cleared at power-on and the game itself never writes these variables.
+// value is set: EWRAM is cleared at power-on and the game itself never writes these variables. Release builds
+// (RELEASE=1, GUNK_TEST_HOOKS 0) leave it out.
+
+#if GUNK_TEST_HOOKS
 
 #define GUNK_TEST_MAGIC 0x4B4E5547 // "GUNK"
 
@@ -31,3 +34,5 @@ void Gunk_ApplyTestSetup(void)
         FlagSet(gGunkTestFlags[i]);
     gGunkTestMagic = 0;
 }
+
+#endif // GUNK_TEST_HOOKS

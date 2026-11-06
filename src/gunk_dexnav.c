@@ -22,6 +22,7 @@
 #include "constants/field_effects.h"
 #include "data.h"
 #include "constants/species.h"
+#include "constants/items.h"
 
 // Gunk's DexNav (key item). Pick one of the area's grass or surfing Pokemon on the DexNav screen
 // (src/gunk_dexnav_screen.c) and it hides nearby, in a patch of rustling grass or of rippling water; step (or surf)
@@ -62,6 +63,7 @@ struct DexNavSearch
     u8 rippleTimer;
     u32 seed; // the RNG state the chosen roll starts from
     struct GunkDexNavRoll roll; // the Pokemon the patch holds (the field search bar shows it)
+    u16 heldItem; // what it holds (ChooseHeldItem); SetWildMonHeldItem gives it this instead of its own roll
 };
 
 static EWRAM_DATA struct DexNavSearch sSearch = {0};
@@ -70,6 +72,9 @@ static EWRAM_DATA u8 sListArea[LIST_MAX] = {0};
 static EWRAM_DATA u8 sListCount = 0;
 
 static const u8 sText_Unseen[] = _("?????");
+
+#define HELD_ITEM_COMMON_MAX 75
+#define HELD_ITEM_RARE_MAX   20
 
 // The patch: the grass rustle (FLDEFF_UNUSED_GRASS's frames), replayed from the start every PATCH_SHAKE_FRAMES:
 // 6 frames still, then the 8 rustle frames at 3 frames each. (The field effect's own animation shakes once, then
@@ -356,6 +361,41 @@ static bool8 ChooseSearchRoll(void)
     return haveBest;
 }
 
+// What the searched Pokemon holds, chosen as the search starts: the species' own wild items (so it stays a legal wild
+// Pokemon), with better odds as the search level and chain grow. Vanilla: 50% the common item, 5% the rare one (always
+// the item when both are the same). Each 5 search levels add 1% to both, each link of the chain 2% to both, up to
+// 75% and 20%. The same scaling as Gunk's Ruby and Sapphire.
+static u16 ChooseHeldItem(u16 species)
+{
+    u16 common = gSpeciesInfo[species].itemCommon, rare = gSpeciesInfo[species].itemRare;
+    u32 boost = GetSearchLevel(species) / 5 + 2 * GetChain(species);
+    u32 commonOdds = 50 + boost, rareOdds = 5 + boost;
+    u16 rnd;
+
+    if (common == rare)
+        return common;
+    if (commonOdds > HELD_ITEM_COMMON_MAX)
+        commonOdds = HELD_ITEM_COMMON_MAX;
+    if (rareOdds > HELD_ITEM_RARE_MAX)
+        rareOdds = HELD_ITEM_RARE_MAX;
+    rnd = Random() % 100;
+    if (rnd < rareOdds)
+        return rare;
+    if (rnd < rareOdds + commonOdds)
+        return common;
+    return ITEM_NONE;
+}
+
+// SetWildMonHeldItem, at the start of every wild battle: TRUE and *item = the searched Pokemon's item in a DexNav
+// battle, FALSE in any other (which keeps the vanilla roll)
+bool8 Gunk_DexNavHeldItem(u16 *item)
+{
+    if (!sSearch.active || !sSearch.inBattle)
+        return FALSE;
+    *item = sSearch.heldItem;
+    return TRUE;
+}
+
 const struct GunkDexNavRoll *Gunk_DexNavSearchRoll(u16 *species)
 {
     if (!sSearch.active || sSearch.inBattle)
@@ -430,6 +470,7 @@ void Gunk_DexNavStartSearch(void)
     sSearch.gotAwayPending = FALSE;
     if (!ChooseSearchRoll())
         return;
+    sSearch.heldItem = ChooseHeldItem(species);
     sSearch.active = TRUE;
     SpawnPatchSprite();
     gSpecialVar_Result = TRUE;

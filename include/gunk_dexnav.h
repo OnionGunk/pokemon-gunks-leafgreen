@@ -15,6 +15,7 @@ u8 Gunk_DexNavChain(u16 species);
 u8 Gunk_DexNavDefaultRow(void);
 void Gunk_DexNavStartSearch(void);
 const struct GunkDexNavRoll *Gunk_DexNavSearchRoll(u16 *species);
+bool8 Gunk_DexNavHeldItem(u16 *item);
 void Gunk_DexNavUpdate(void);
 bool8 Gunk_DexNavTryStartBattle(void);
 void Gunk_DexNavOnBattleEnd(void);

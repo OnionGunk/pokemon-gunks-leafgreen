@@ -8,6 +8,7 @@
 #include "battle.h"
 #include "battle_anim.h"
 #include "item.h"
+#include "gunk_dexnav.h"
 #include "event_data.h"
 #include "util.h"
 #include "pokemon_storage_system.h"
@@ -6039,8 +6040,16 @@ void SetWildMonHeldItem(void)
 {
     if (!(gBattleTypeFlags & (BATTLE_TYPE_POKEDUDE | BATTLE_TYPE_LEGENDARY | BATTLE_TYPE_TRAINER)))
     {
-        u16 rnd = Random() % 100;
-        u16 species = GetMonData(&gEnemyParty[0], MON_DATA_SPECIES, NULL);
+        u16 rnd, species, item;
+
+        // Gunk's: a DexNav battle's Pokemon holds what its search chose (src/gunk_dexnav.c, ChooseHeldItem)
+        if (Gunk_DexNavHeldItem(&item))
+        {
+            SetMonData(&gEnemyParty[0], MON_DATA_HELD_ITEM, &item);
+            return;
+        }
+        rnd = Random() % 100;
+        species = GetMonData(&gEnemyParty[0], MON_DATA_SPECIES, NULL);
         if (gSpeciesInfo[species].itemCommon == gSpeciesInfo[species].itemRare)
         {
             // Both held items are the same, 100% chance to hold item   

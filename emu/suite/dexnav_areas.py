@@ -52,10 +52,14 @@ def tables():
     """{game: {map id: {(species, area)}}} from src/data/wild_encounters.json"""
     ids = species_ids()
     out = {"FireRed": collections.defaultdict(set), "LeafGreen": collections.defaultdict(set)}
+    seen = set()
     for group in json.load(open(os.path.join(REPO, "src/data/wild_encounters.json")))["wild_encounter_groups"]:
         for e in group["encounters"]:
             for game in out:
-                if e["base_label"].endswith("_" + game):
+                # a map's first table only: Altering Cave has 9, picked by VAR_ALTERING_CAVE_WILD_SET (Mystery
+                # Gift), and without one the game uses the first (Zubat)
+                if e["base_label"].endswith("_" + game) and (game, e["map"]) not in seen:
+                    seen.add((game, e["map"]))
                     for area, key in AREAS:
                         out[game][e["map"]] |= {(ids[m["species"]], area) for m in e.get(key, {}).get("mons", [])}
     return out

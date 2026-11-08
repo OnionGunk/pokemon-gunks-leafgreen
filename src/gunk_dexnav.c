@@ -608,6 +608,7 @@ void Gunk_DexNavStartSearch(void)
     u16 count = 0, pick;
     u16 species;
     bool8 walkable[WINDOW_W * WINDOW_H];
+    u8 pass;
 
     gSpecialVar_Result = FALSE;
     if (gSpecialVar_0x8005 >= sListCount || GetSafariZoneFlag())
@@ -630,30 +631,35 @@ void Gunk_DexNavStartSearch(void)
     PlayerGetDestCoords(&px, &py);
     if (!gSpecialVar_0x8006)
         MarkWalkable(px, py, walkable);
-    for (y = py - PATCH_MAX_DIST; y <= py + PATCH_MAX_DIST; y++)
+    // land: first only the tiles the player can walk to; with none of those, any in sight (behind a fence, as on
+    // Route 13's shore, the patch is still there to see)
+    for (pass = 0; pass < 2 && count == 0; pass++)
     {
-        for (x = px - PATCH_MAX_DIST; x <= px + PATCH_MAX_DIST; x++)
+        for (y = py - PATCH_MAX_DIST; y <= py + PATCH_MAX_DIST; y++)
         {
-            s16 dx = x > px ? x - px : px - x;
-            s16 dy = y > py ? y - py : py - y;
+            for (x = px - PATCH_MAX_DIST; x <= px + PATCH_MAX_DIST; x++)
+            {
+                s16 dx = x > px ? x - px : px - x;
+                s16 dy = y > py ? y - py : py - y;
 
-            if (dx + dy < PATCH_MIN_DIST || dx > WINDOW_HALF_W || dy > WINDOW_HALF_H)
-                continue;
-            if (gSpecialVar_0x8006)
-            {
-                if (!MetatileBehavior_IsSurfableAndNotWaterfall(MapGridGetMetatileBehaviorAt(x, y)))
+                if (dx + dy < PATCH_MIN_DIST || dx > WINDOW_HALF_W || dy > WINDOW_HALF_H)
                     continue;
+                if (gSpecialVar_0x8006)
+                {
+                    if (!MetatileBehavior_IsSurfableAndNotWaterfall(MapGridGetMetatileBehaviorAt(x, y)))
+                        continue;
+                }
+                else if (!IsLandPatchTile(x, y)
+                      || (pass == 0 && !walkable[(y - py + WINDOW_HALF_H) * WINDOW_W + x - px + WINDOW_HALF_W]))
+                {
+                    continue;
+                }
+                if (MapGridGetCollisionAt(x, y) || GetObjectEventIdByXY(x, y) != OBJECT_EVENTS_COUNT)
+                    continue;
+                candidatesX[count] = x;
+                candidatesY[count] = y;
+                count++;
             }
-            else if (!IsLandPatchTile(x, y)
-                  || !walkable[(y - py + WINDOW_HALF_H) * WINDOW_W + x - px + WINDOW_HALF_W])
-            {
-                continue;
-            }
-            if (MapGridGetCollisionAt(x, y) || GetObjectEventIdByXY(x, y) != OBJECT_EVENTS_COUNT)
-                continue;
-            candidatesX[count] = x;
-            candidatesY[count] = y;
-            count++;
         }
     }
     if (count == 0)

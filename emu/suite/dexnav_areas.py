@@ -33,9 +33,9 @@ ITEM_MASTER_BALL = 1
 AREAS = ((0, "land_mons"), (1, "water_mons"), (2, "rock_smash_mons"), (3, "fishing_mons"))
 TILE_ENCOUNTER_LAND, TILE_ENCOUNTER_WATER = 1, 2
 # the DexNav's window (Gunk_DexNavStartSearch): 2 to 5 tiles away (dx + dy), at most 6 across and 4 up or down
-# stand tiles: plain ground (normal, tall grass, cave, sand, indoor, mountain top, Mt. Ember's slope), so the
+# stand tiles: plain ground (normal, tall grass, cave, beach and cave sand, indoor, mountain top, Mt. Ember's slope), so the
 # warp puts the player exactly there
-PLAIN = {0x00, 0x02, 0x08, 0x0B, 0x0C, 0x2B, 0x32}
+PLAIN = {0x00, 0x02, 0x08, 0x0B, 0x0C, 0x21, 0x2B, 0x32}
 WINDOW = [(dx, dy) for dy in range(-4, 5) for dx in range(-6, 7) if 2 <= abs(dx) + abs(dy) <= 5]
 
 

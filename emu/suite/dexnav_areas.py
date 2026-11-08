@@ -33,6 +33,9 @@ ITEM_MASTER_BALL = 1
 AREAS = ((0, "land_mons"), (1, "water_mons"), (2, "rock_smash_mons"), (3, "fishing_mons"))
 TILE_ENCOUNTER_LAND, TILE_ENCOUNTER_WATER = 1, 2
 # the DexNav's window (Gunk_DexNavStartSearch): 2 to 5 tiles away (dx + dy), at most 6 across and 4 up or down
+# stand tiles: plain ground (normal, tall grass, cave, sand, indoor, mountain top, Mt. Ember's slope), so the
+# warp puts the player exactly there
+PLAIN = {0x00, 0x02, 0x08, 0x0B, 0x0C, 0x2B, 0x32}
 WINDOW = [(dx, dy) for dy in range(-4, 5) for dx in range(-6, 7) if 2 <= abs(dx) + abs(dy) <= 5]
 
 
@@ -97,7 +100,7 @@ def stand_tile(m, layouts, attrs, encounter):
     for y in range(h):
         for x in range(w):
             t = tile(x, y)
-            if (x, y) in taken or t[2] or t[1] == TILE_ENCOUNTER_WATER or t[0] in (0x10, 0x11, 0x12, 0x13, 0x15, 0x1B):
+            if (x, y) in taken or t[2] or t[1] == TILE_ENCOUNTER_WATER or t[0] not in PLAIN:
                 continue
             n = grass = 0
             for dx, dy in WINDOW:
@@ -128,25 +131,32 @@ class Areas(Catcher, Screen):
             self.g.wait_field(press="A", max_steps=400)
         self.warp(m["group"], m["num"], x, y, name="dexnav_areas_warp")
         self.g.wait_field(press="B", max_steps=60)
+        if self.pos() != (x, y):
+            # a scene on arrival moved the player (Four Island's rival walks up and talks): walk back
+            self.g.wait_field(press="B", max_steps=200)
+            self.path_to(m, x, y)
         return self.pos() == (x, y)
 
     def path_to(self, m, tx, ty):
         """Walk to (tx, ty) along a shortest path over the map file's passable land tiles (not water, a ledge or a
         tile with someone on it), one press per tile; stops at a battle. True when there."""
         w, h, tile = map_tiles(m, story.neighbour.layouts, self.attrs)
+        height = story.blocks(story.neighbour.layouts[m["layout"]])
         people = {(o["x"], o["y"]) for o in m.get("object_events") or []}
 
-        def free(x, y):
+        def free(x, y, fx, fy):
             u = tile(x, y)
-            return (x, y) == (tx, ty) or (u is not None and not u[2] and u[1] != TILE_ENCOUNTER_WATER
-                                          and not 0x38 <= u[0] <= 0x3B and (x, y) not in people)
+            if u is None or u[2] or u[1] == TILE_ENCOUNTER_WATER or 0x38 <= u[0] <= 0x3B:
+                return False
+            a, b = height(fx, fy) >> 12, height(x, y) >> 12  # elevations: 0 and 15 join any (CanStepOnFoot)
+            return (a == b or 0 in (a, b) or 15 in (a, b)) and ((x, y) == (tx, ty) or (x, y) not in people)
         start = self.pos()
         prev = {start: None}
         todo = collections.deque([start])
         while todo and (tx, ty) not in prev:
             x, y = todo.popleft()
             for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
-                if (nx, ny) not in prev and free(nx, ny):
+                if (nx, ny) not in prev and free(nx, ny, x, y):
                     prev[(nx, ny)] = (x, y)
                     todo.append((nx, ny))
         if (tx, ty) not in prev:
@@ -259,17 +269,21 @@ def main():
                         t.goto_cell([i for i, (s, a) in enumerate(listed) if (s, a) == (sp, 0)][0], 0)
                         found = t.start_search()
                         t.g.wait_field(press="A", max_steps=40)
+                        if not found[3]:  # read before the screen had closed: read it again now
+                            s = t.search()
+                            found = (s["species"], s["x"], s["y"], s["active"], s["pid"])
                         raw = None
                         if found[3]:
                             t.path_to(m, found[1], found[2])
                             # a DexNav battle, not a random one on the way: sSearch.inBattle, set as the step
                             # starts it; the battle screen comes after the transition
-                            dexnav_battle = t.g.u8(t.g.a("sSearch") + 12) == 1
+                            dexnav_battle = False
                             for _ in range(40):
+                                dexnav_battle = dexnav_battle or t.g.u8(t.g.a("sSearch") + 12) == 1
                                 if t.in_battle():
                                     break
                                 t.g.cmd("wait 10")
-                            dexnav_battle = dexnav_battle and t.in_battle()
+                            dexnav_battle = (dexnav_battle or t.g.u8(t.g.a("sSearch") + 12) == 1) and t.in_battle()
                             raw = t.catch() if dexnav_battle else None
                             if t.in_battle():
                                 t.g.wait_field(press="A", max_steps=200)  # a random battle: the Lv. 100 lead wins it

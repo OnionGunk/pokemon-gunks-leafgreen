@@ -266,7 +266,8 @@ static bool8 IsGrassBehavior(u8 behavior)
 }
 
 // A land patch's tile: one a wild battle can start on by walking (the game's land encounter tiles: tall grass, the
-// Cycling Road's grass, cave, sand and building floors), and not a warp, stairs, thin ice or a ledge's edge
+// Cycling Road's grass, cave, sand and building floors, Mt. Ember's slopes, which only stop a step north), and not
+// a warp, stairs, thin ice or a ledge's edge
 static bool8 IsLandPatchTile(s16 x, s16 y)
 {
     u8 behavior = MapGridGetMetatileBehaviorAt(x, y);
@@ -283,6 +284,7 @@ static bool8 IsLandPatchTile(s16 x, s16 y)
     case MB_SAND_CAVE:
     case MB_INDOOR_ENCOUNTER:
     case MB_MOUNTAIN_TOP:
+    case MB_IMPASSABLE_NORTH:
         return TRUE;
     default:
         return FALSE;
@@ -539,6 +541,63 @@ const struct GunkDexNavRoll *Gunk_DexNavSearchRoll(u16 *species)
     return &sSearch.roll;
 }
 
+// The DexNav's window: the patch goes at most 6 tiles across and 4 up or down from the player
+#define WINDOW_HALF_W 6
+#define WINDOW_HALF_H 4
+#define WINDOW_W (2 * WINDOW_HALF_W + 1)
+#define WINDOW_H (2 * WINDOW_HALF_H + 1)
+
+// One step on foot from (x, y) to the next tile (nx, ny): no wall, water or ledge there, and no change of height
+// (elevation 0 and 15 join any height, as in the game's own movement check)
+static bool8 CanStepOnFoot(s16 x, s16 y, s16 nx, s16 ny)
+{
+    u8 behavior = MapGridGetMetatileBehaviorAt(nx, ny);
+    u8 from = MapGridGetElevationAt(x, y);
+    u8 to = MapGridGetElevationAt(nx, ny);
+
+    if (MapGridGetCollisionAt(nx, ny) || MetatileBehavior_IsSurfableAndNotWaterfall(behavior)
+     || MetatileBehavior_IsJumpEast(behavior) || MetatileBehavior_IsJumpWest(behavior)
+     || MetatileBehavior_IsJumpNorth(behavior) || MetatileBehavior_IsJumpSouth(behavior))
+        return FALSE;
+    return from == to || from == 0 || from == 15 || to == 0 || to == 15;
+}
+
+// Marks in <walkable> (WINDOW_W x WINDOW_H, the player in the middle) the tiles the player can walk to without
+// leaving the window. A land patch goes only on those: in a cave, never behind a wall it would take the whole
+// search to walk around.
+static void MarkWalkable(s16 px, s16 py, bool8 *walkable)
+{
+    static const s8 sSteps[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    u8 queue[WINDOW_W * WINDOW_H];
+    u8 head = 0, tail = 0, i;
+
+    for (i = 0; i < WINDOW_W * WINDOW_H; i++)
+        walkable[i] = FALSE;
+    i = WINDOW_HALF_H * WINDOW_W + WINDOW_HALF_W;
+    walkable[i] = TRUE;
+    queue[tail++] = i;
+    while (head < tail)
+    {
+        u8 cur = queue[head++];
+        s16 cx = cur % WINDOW_W, cy = cur / WINDOW_W;
+        u8 d;
+
+        for (d = 0; d < 4; d++)
+        {
+            s16 nx = cx + sSteps[d][0], ny = cy + sSteps[d][1];
+            u8 next = ny * WINDOW_W + nx;
+
+            if (nx < 0 || nx >= WINDOW_W || ny < 0 || ny >= WINDOW_H || walkable[next])
+                continue;
+            if (!CanStepOnFoot(px + cx - WINDOW_HALF_W, py + cy - WINDOW_HALF_H,
+                               px + nx - WINDOW_HALF_W, py + ny - WINDOW_HALF_H))
+                continue;
+            walkable[next] = TRUE;
+            queue[tail++] = next;
+        }
+    }
+}
+
 // special: VAR_0x8005 = the list row chosen. Places the patch; VAR_RESULT = TRUE if it found grass (or water) for it.
 // STR_VAR_1 = the species' name (or "?????" if unseen), STR_VAR_2 = its search level, VAR_0x8006 = TRUE if it searches the water.
 void Gunk_DexNavStartSearch(void)
@@ -548,6 +607,7 @@ void Gunk_DexNavStartSearch(void)
     s16 candidatesY[(2 * PATCH_MAX_DIST + 1) * (2 * PATCH_MAX_DIST + 1)];
     u16 count = 0, pick;
     u16 species;
+    bool8 walkable[WINDOW_W * WINDOW_H];
 
     gSpecialVar_Result = FALSE;
     if (gSpecialVar_0x8005 >= sListCount || GetSafariZoneFlag())
@@ -568,6 +628,8 @@ void Gunk_DexNavStartSearch(void)
 
     // a land encounter tile (or surfable water) in sight, 2 to 5 tiles away, that the player could walk (or surf) onto
     PlayerGetDestCoords(&px, &py);
+    if (!gSpecialVar_0x8006)
+        MarkWalkable(px, py, walkable);
     for (y = py - PATCH_MAX_DIST; y <= py + PATCH_MAX_DIST; y++)
     {
         for (x = px - PATCH_MAX_DIST; x <= px + PATCH_MAX_DIST; x++)
@@ -575,14 +637,15 @@ void Gunk_DexNavStartSearch(void)
             s16 dx = x > px ? x - px : px - x;
             s16 dy = y > py ? y - py : py - y;
 
-            if (dx + dy < PATCH_MIN_DIST || dx > 6 || dy > 4)
+            if (dx + dy < PATCH_MIN_DIST || dx > WINDOW_HALF_W || dy > WINDOW_HALF_H)
                 continue;
             if (gSpecialVar_0x8006)
             {
                 if (!MetatileBehavior_IsSurfableAndNotWaterfall(MapGridGetMetatileBehaviorAt(x, y)))
                     continue;
             }
-            else if (!IsLandPatchTile(x, y))
+            else if (!IsLandPatchTile(x, y)
+                  || !walkable[(y - py + WINDOW_HALF_H) * WINDOW_W + x - px + WINDOW_HALF_W])
             {
                 continue;
             }

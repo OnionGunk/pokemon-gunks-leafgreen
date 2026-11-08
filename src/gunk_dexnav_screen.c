@@ -517,7 +517,9 @@ static void DrawAreaOdds(void)
     FillWindowPixelBuffer(WIN_GRID, PIXEL_FILL(DXCOL_WHITE));
     AddTextPrinterParameterized3(WIN_GRID, FONT_NORMAL, 4, 1, sDexNavColors_Label, TEXT_SKIP_DRAW, sDexNavText_ThisArea);
     FillWindowPixelRect(WIN_GRID, PIXEL_FILL(DXCOL_SHADOW), 4, 16, 120, 1);
-    PrintAreaLine(19, sDexNavText_AreaGrass, Gunk_GetWildMonsInfo(WILD_AREA_LAND), 0, LAND_WILD_COUNT - 1, TRUE);
+    PrintAreaLine(19, Gunk_DexNavLandMethod() == DEXNAV_METHOD_GRASS ? sDexNavText_AreaGrass
+                                                                   : sDexNavText_Methods[Gunk_DexNavLandMethod()],
+                  Gunk_GetWildMonsInfo(WILD_AREA_LAND), 0, LAND_WILD_COUNT - 1, TRUE);
     PrintAreaLine(32, sDexNavText_Surfing, Gunk_GetWildMonsInfo(WILD_AREA_WATER), 0, WATER_WILD_COUNT - 1, TRUE);
     PrintAreaLine(45, sDexNavText_OldRod, fishing, 0, 1, FALSE);
     PrintAreaLine(58, sDexNavText_GoodRod, fishing, 2, 4, FALSE);

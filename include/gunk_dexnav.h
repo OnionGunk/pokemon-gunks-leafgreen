@@ -22,12 +22,15 @@ enum {
     DEXNAV_METHOD_GOOD_ROD,
     DEXNAV_METHOD_SUPER_ROD,
     DEXNAV_METHOD_ROCK_SMASH,
+    DEXNAV_METHOD_CAVE,    // land Pokemon in a cave (searched for on its floor)
+    DEXNAV_METHOD_INDOORS, // land Pokemon in a building (the Power Plant, the Mansion, Pokemon Tower)
 };
 #define DEXNAV_LIST_MAX (LAND_WILD_COUNT + WATER_WILD_COUNT + ROCK_WILD_COUNT + FISH_WILD_COUNT)
 // Gunk_DexNavPrepareList's VAR_RESULT in the Safari Zone (data/scripts/gunk_dexnav.inc: 255)
 #define DEXNAV_LIST_SAFARI 255
 u8 Gunk_DexNavListTab(u8 i);
 u8 Gunk_DexNavListMethod(u8 i);
+u8 Gunk_DexNavLandMethod(void);
 void Gunk_DexNavLevelRange(u8 i, u8 *minLevel, u8 *maxLevel);
 u16 Gunk_DexNavChainSpecies(void);
 u8 Gunk_DexNavSearchLevel(u16 species);

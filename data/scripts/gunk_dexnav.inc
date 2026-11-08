@@ -13,7 +13,13 @@ EventScript_GunkDexNav::
 	special Gunk_DexNavStartSearch
 	goto_if_eq VAR_RESULT, FALSE, EventScript_GunkDexNavNoSpot
 	goto_if_eq VAR_0x8006, TRUE, EventScript_GunkDexNavHidingInWater
+	goto_if_eq VAR_0x8006, 2, EventScript_GunkDexNavHidingInDust
 	msgbox Text_GunkDexNavHiding
+	goto EventScript_GunkDexNavEnd
+
+@ a land patch on a cave or building floor (src/gunk_dexnav.c, sSearch.dust)
+EventScript_GunkDexNavHidingInDust::
+	msgbox Text_GunkDexNavHidingInDust
 	goto EventScript_GunkDexNavEnd
 
 EventScript_GunkDexNavHidingInWater::
@@ -60,6 +66,11 @@ Text_GunkDexNavHiding::
 	.string "Something is hiding there!\p"
 	.string "{STR_VAR_1}'s search level: {STR_VAR_2}$"
 
+Text_GunkDexNavHidingInDust::
+	.string "Dust is stirring nearby…\n"
+	.string "Something is hiding there!\p"
+	.string "{STR_VAR_1}'s search level: {STR_VAR_2}$"
+
 Text_GunkDexNavHidingInWater::
 	.string "The water is rippling nearby…\n"
 	.string "Something is hiding there!\p"
@@ -74,8 +85,8 @@ Text_GunkDexNavNoMons::
 	.string "grass or water here.$"
 
 Text_GunkDexNavNoGrass::
-	.string "DEXNAV: There's no tall grass\n"
-	.string "close enough to search.$"
+	.string "DEXNAV: There's nowhere close\n"
+	.string "enough for POKéMON to hide.$"
 
 Text_GunkDexNavNoWater::
 	.string "DEXNAV: There's no water\n"

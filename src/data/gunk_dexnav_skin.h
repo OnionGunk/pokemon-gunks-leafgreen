@@ -103,6 +103,8 @@ static const u8 sDexNavText_StatusNotSeen[] = _("Not seen yet");
 static const u8 sDexNavText_Found[]       = _("Found");
 static const u8 sDexNavText_TallGrass[]   = _("Tall grass");
 static const u8 sDexNavText_Surfing[]     = _("Surfing");
+static const u8 sDexNavText_Cave[]        = _("Cave");
+static const u8 sDexNavText_Indoors[]     = _("Indoors");
 static const u8 sDexNavText_OldRod[] = _("Old Rod");
 static const u8 sDexNavText_GoodRod[] = _("Good Rod");
 static const u8 sDexNavText_SuperRod[] = _("Super Rod");
@@ -121,6 +123,8 @@ static const u8 *const sDexNavText_Methods[] =
     [DEXNAV_METHOD_GOOD_ROD]   = sDexNavText_GoodRod,
     [DEXNAV_METHOD_SUPER_ROD]  = sDexNavText_SuperRod,
     [DEXNAV_METHOD_ROCK_SMASH] = sDexNavText_RockSmash,
+    [DEXNAV_METHOD_CAVE]       = sDexNavText_Cave,
+    [DEXNAV_METHOD_INDOORS]    = sDexNavText_Indoors,
 };
 // The OTHER tab's hint on A, by DEXNAV_METHOD_*
 static const u8 *const sDexNavText_MethodHints[] =
@@ -131,6 +135,8 @@ static const u8 *const sDexNavText_MethodHints[] =
     [DEXNAV_METHOD_GOOD_ROD]   = sDexNavText_HintGoodRod,
     [DEXNAV_METHOD_SUPER_ROD]  = sDexNavText_HintSuperRod,
     [DEXNAV_METHOD_ROCK_SMASH] = sDexNavText_HintRockSmash,
+    [DEXNAV_METHOD_CAVE]       = sDexNavText_None,
+    [DEXNAV_METHOD_INDOORS]    = sDexNavText_None,
 };
 static const u8 sDexNavText_Level[]       = _("Level");
 static const u8 sDexNavText_Lv[]          = _("Lv. ");

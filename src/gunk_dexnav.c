@@ -24,6 +24,8 @@
 #include "constants/species.h"
 #include "constants/items.h"
 #include "constants/abilities.h"
+#include "constants/map_types.h"
+#include "constants/metatile_behaviors.h"
 
 // Gunk's DexNav (key item). Pick one of the area's grass or surfing Pokemon on the DexNav screen
 // (src/gunk_dexnav_screen.c) and it hides nearby, in a patch of rustling grass or of rippling water; step (or surf)
@@ -65,6 +67,7 @@ struct DexNavSearch
     u32 seed; // the RNG state the chosen roll starts from
     struct GunkDexNavRoll roll; // the Pokemon the patch holds (the field search bar shows it)
     u16 heldItem; // what it holds (ChooseHeldItem); SetWildMonHeldItem gives it this instead of its own roll
+    bool8 dust; // a land patch off the grass (a cave or building floor): a puff of dust instead of the rustle
 };
 
 static EWRAM_DATA struct DexNavSearch sSearch = {0};
@@ -162,9 +165,9 @@ static void StopPatchSprite(void)
 {
     struct Sprite *sprite = &gSprites[sSearch.spriteId];
 
-    if (sSearch.area == WILD_AREA_WATER)
+    if (sSearch.area == WILD_AREA_WATER || sSearch.dust)
     {
-        sSearch.spriteId = MAX_SPRITES; // the ripples end by themselves
+        sSearch.spriteId = MAX_SPRITES; // the ripples and the dust end by themselves
         return;
     }
     if (sSearch.spriteId < MAX_SPRITES && sprite->inUse && sprite->data[0] == FLDEFF_UNUSED_GRASS
@@ -177,7 +180,7 @@ static bool8 IsPatchSpriteAlive(void)
 {
     struct Sprite *sprite = &gSprites[sSearch.spriteId];
 
-    if (sSearch.area == WILD_AREA_WATER) // ripples end by themselves: a new one twice a second
+    if (sSearch.area == WILD_AREA_WATER || sSearch.dust) // these end by themselves: a new one twice a second
         return ++sSearch.rippleTimer < PATCH_SHAKE_FRAMES;
 
     return sSearch.spriteId < MAX_SPRITES && sprite->inUse && sprite->data[0] == FLDEFF_UNUSED_GRASS
@@ -196,6 +199,18 @@ static void SpawnPatchSprite(void)
         gFieldEffectArguments[2] = 151; // subpriority, as a surfer's own ripples
         gFieldEffectArguments[3] = 3;
         FieldEffectStart(FLDEFF_RIPPLE);
+        sSearch.spriteId = MAX_SPRITES;
+        sSearch.rippleTimer = 0;
+        return;
+    }
+    if (sSearch.dust)
+    {
+        // the dust a landing kicks up, as a Pokemon scratching at the floor
+        gFieldEffectArguments[0] = sSearch.x;
+        gFieldEffectArguments[1] = sSearch.y;
+        gFieldEffectArguments[2] = gObjectEvents[gPlayerAvatar.objectEventId].previousElevation;
+        gFieldEffectArguments[3] = 2; // OAM priority, as the grass rustle
+        FieldEffectStart(FLDEFF_DUST);
         sSearch.spriteId = MAX_SPRITES;
         sSearch.rippleTimer = 0;
         return;
@@ -234,6 +249,46 @@ static u8 AreaSlotCount(u8 area)
     }
 }
 
+// How this map's land Pokemon are found: in a cave or a building, on the floor; elsewhere, in the grass
+u8 Gunk_DexNavLandMethod(void)
+{
+    switch (gMapHeader.mapType)
+    {
+    case MAP_TYPE_UNDERGROUND: return DEXNAV_METHOD_CAVE;
+    case MAP_TYPE_INDOOR:      return DEXNAV_METHOD_INDOORS;
+    default:                   return DEXNAV_METHOD_GRASS;
+    }
+}
+
+static bool8 IsGrassBehavior(u8 behavior)
+{
+    return MetatileBehavior_IsTallGrass(behavior) || behavior == MB_CYCLING_ROAD_PULL_DOWN_GRASS;
+}
+
+// A land patch's tile: one a wild battle can start on by walking (the game's land encounter tiles: tall grass, the
+// Cycling Road's grass, cave, sand and building floors), and not a warp, stairs, thin ice or a ledge's edge
+static bool8 IsLandPatchTile(s16 x, s16 y)
+{
+    u8 behavior = MapGridGetMetatileBehaviorAt(x, y);
+
+    if (MetatileBehavior_IsTallGrass(behavior))
+        return TRUE;
+    if (MapGridGetMetatileAttributeAt(x, y, METATILE_ATTRIBUTE_ENCOUNTER_TYPE) != TILE_ENCOUNTER_LAND)
+        return FALSE;
+    switch (behavior)
+    {
+    case MB_CYCLING_ROAD_PULL_DOWN_GRASS:
+    case MB_NORMAL:
+    case MB_CAVE:
+    case MB_SAND_CAVE:
+    case MB_INDOOR_ENCOUNTER:
+    case MB_MOUNTAIN_TOP:
+        return TRUE;
+    default:
+        return FALSE;
+    }
+}
+
 // How the Pokemon in <area>'s <slot> is found. The fishing table is shared by the rods: slots 0-1 the Old Rod's, 2-4
 // the Good Rod's, 5-9 the Super Rod's (ChooseWildMonIndex_Fishing).
 static u8 SlotMethod(u8 area, u8 slot)
@@ -243,7 +298,7 @@ static u8 SlotMethod(u8 area, u8 slot)
     case WILD_AREA_WATER:   return DEXNAV_METHOD_SURF;
     case WILD_AREA_ROCKS:   return DEXNAV_METHOD_ROCK_SMASH;
     case WILD_AREA_FISHING: return slot < 2 ? DEXNAV_METHOD_OLD_ROD : slot < 5 ? DEXNAV_METHOD_GOOD_ROD : DEXNAV_METHOD_SUPER_ROD;
-    default:                return DEXNAV_METHOD_GRASS;
+    default:                return Gunk_DexNavLandMethod();
     }
 }
 
@@ -511,7 +566,7 @@ void Gunk_DexNavStartSearch(void)
     if (sSearch.active)
         EndSearch();
 
-    // a tall grass (or surfable water) tile in sight, 2 to 5 tiles away, that the player could walk (or surf) onto
+    // a land encounter tile (or surfable water) in sight, 2 to 5 tiles away, that the player could walk (or surf) onto
     PlayerGetDestCoords(&px, &py);
     for (y = py - PATCH_MAX_DIST; y <= py + PATCH_MAX_DIST; y++)
     {
@@ -527,7 +582,7 @@ void Gunk_DexNavStartSearch(void)
                 if (!MetatileBehavior_IsSurfableAndNotWaterfall(MapGridGetMetatileBehaviorAt(x, y)))
                     continue;
             }
-            else if (!MetatileBehavior_IsTallGrass(MapGridGetMetatileBehaviorAt(x, y)))
+            else if (!IsLandPatchTile(x, y))
             {
                 continue;
             }
@@ -546,6 +601,7 @@ void Gunk_DexNavStartSearch(void)
     sSearch.area = sListArea[gSpecialVar_0x8005];
     sSearch.x = candidatesX[pick];
     sSearch.y = candidatesY[pick];
+    sSearch.dust = !gSpecialVar_0x8006 && !IsGrassBehavior(MapGridGetMetatileBehaviorAt(sSearch.x, sSearch.y));
     sSearch.mapGroup = gSaveBlock1Ptr->location.mapGroup;
     sSearch.mapNum = gSaveBlock1Ptr->location.mapNum;
     sSearch.framesLeft = SEARCH_FRAMES;
@@ -556,6 +612,8 @@ void Gunk_DexNavStartSearch(void)
     sSearch.heldItem = ChooseHeldItem(species);
     sSearch.active = TRUE;
     SpawnPatchSprite();
+    if (sSearch.dust)
+        gSpecialVar_0x8006 = 2; // the script's "dust" message
     gSpecialVar_Result = TRUE;
 }
 

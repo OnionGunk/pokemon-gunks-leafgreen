@@ -2,7 +2,7 @@
 
 Usage: py -3 emu/suite/legality_unown.py <rom.gba> <rom.elf> <out_dir> [per_chamber]
 
-Uses legality.py's Catcher. In each chamber (Seven Island, map group 2, maps 27-33; the player starts two tiles
+Uses legality.py's Catcher, walking shortest paths (dexnav_areas.py's). In each chamber (Seven Island, map group 2, maps 27-33; the player starts two tiles
 above the entrance), <per_chamber> random encounters, then as many plain DexNav searches and as many chain searches
 (search level 100, chain 40: 21 rolls), with the
 chambers unlocked (FLAG_SYS_UNLOCKED_TANOBY_RUINS). An Unown's letter comes from its PID, and each chamber allows only its own
@@ -16,12 +16,23 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from legality import Catcher  # noqa: E402
+import story  # noqa: E402
+from dexnav_areas import Areas, tileset_attrs  # noqa: E402
 
 CHAMBERS = [(27, "Monean"), (28, "Liptoo"), (29, "Weepth"), (30, "Dilford"), (31, "Scufib"), (32, "Rixy"),
             (33, "Viapois")]
 START = (11, 13)
 FLAG_SYS_UNLOCKED_TANOBY_RUINS = 0x849  # set by the Tanoby Key puzzle; without it the chambers have no encounters
+
+
+class Chamber(Areas):
+    """legality.py's Catcher, walking the chamber's shortest path (the map files' passable tiles and elevations):
+    a straight walk stops at the chambers' inner walls, so most DexNav patches were never reached."""
+    room = None
+
+    def walk_to(self, tx, ty, max_steps=60):
+        if not (self.room and self.path_to(self.room, tx, ty)):
+            super().walk_to(tx, ty, max_steps)
 
 
 def letter(raw):
@@ -33,7 +44,10 @@ def letter(raw):
 def main():
     rom, elf, out = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2]), os.path.abspath(sys.argv[3])
     n = int(sys.argv[4]) if len(sys.argv) > 4 else 2
-    c = Catcher(rom, elf, out)
+    c = Chamber(rom, elf, out)
+    c.attrs = tileset_attrs()
+    story.neighbour.layouts = story.layouts()
+    rooms = {(m["group"], m["num"]): m for m in story.maps().values()}
     t0 = time.time()
     letters = {}
     import emu
@@ -41,6 +55,7 @@ def main():
         for num, name in CHAMBERS:
             place = ((2, num), START)
             c.start(place)
+            c.room = rooms[(2, num)]
             flag = c.sb1() + 0x0EE0 + FLAG_SYS_UNLOCKED_TANOBY_RUINS // 8  # SaveBlock1 flags
             c.g.cmd(f"write8 {flag} {c.g.u8(flag) | 1 << FLAG_SYS_UNLOCKED_TANOBY_RUINS % 8}")
             c.shot(f"unown_{name}.png")

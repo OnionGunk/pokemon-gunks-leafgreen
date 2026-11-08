@@ -151,6 +151,8 @@ class Areas(Catcher, Screen):
             a, b = height(fx, fy) >> 12, height(x, y) >> 12  # elevations: 0 and 15 join any (CanStepOnFoot)
             return (a == b or 0 in (a, b) or 15 in (a, b)) and ((x, y) == (tx, ty) or (x, y) not in people)
         start = self.pos()
+        if start == (tx, ty):
+            return True
         prev = {start: None}
         todo = collections.deque([start])
         while todo and (tx, ty) not in prev:

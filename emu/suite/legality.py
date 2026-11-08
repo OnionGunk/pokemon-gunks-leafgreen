@@ -202,9 +202,13 @@ class Catcher(Features):
         if self.in_battle():
             return self.catch()
         step = "Up" if self.pos()[1] > y else "Down" if self.pos()[1] < y else ("Left" if self.pos()[0] > x else "Right")
-        g.cmd(f"press {step} 8", "wait 40")
-        if not self.in_battle():
+        g.cmd(f"press {step} 8", "wait 10")
+        if self.pos() != (x, y):
             self.walk_to(x, y)
+        for _ in range(30):  # the battle transition takes about 110 frames before the battle's own callback
+            if self.in_battle():
+                break
+            g.cmd("wait 10")
         return self.catch() if self.in_battle() else None
 
 

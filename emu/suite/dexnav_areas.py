@@ -35,7 +35,7 @@ TILE_ENCOUNTER_LAND, TILE_ENCOUNTER_WATER = 1, 2
 # the DexNav's window (Gunk_DexNavStartSearch): 2 to 5 tiles away (dx + dy), at most 6 across and 4 up or down
 # stand tiles: plain ground (normal, tall grass, cave, beach and cave sand, indoor, mountain top, Mt. Ember's slope), so the
 # warp puts the player exactly there
-PLAIN = {0x00, 0x02, 0x08, 0x0B, 0x0C, 0x21, 0x2B, 0x32}
+PLAIN = {0x00, 0x02, 0x08, 0x0B, 0x0C, 0x21, 0x2B, 0x32, 0xD0}  # 0x21 sand (the sea routes' beaches), 0xD0 the Cycling Road
 WINDOW = [(dx, dy) for dy in range(-4, 5) for dx in range(-6, 7) if 2 <= abs(dx) + abs(dy) <= 5]
 
 
@@ -107,8 +107,23 @@ def stand_tile(m, layouts, attrs, encounter):
             if (x, y) in taken or t[2] or t[1] == TILE_ENCOUNTER_WATER or t[0] not in PLAIN:
                 continue
             n = grass = 0
+            # a land patch must be walkable from here inside the DexNav's 13 x 9 window (MarkWalkable): a fence
+            # between the stand tile and the grass (Route 17) leaves nowhere to hide
+            reach = {(x, y)}
+            if encounter == TILE_ENCOUNTER_LAND:
+                todo = [(x, y)]
+                while todo:
+                    cx, cy = todo.pop()
+                    for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
+                        u = tile(nx, ny)
+                        if (abs(nx - x) <= 6 and abs(ny - y) <= 4 and (nx, ny) not in reach and u and not u[2]
+                                and u[1] != TILE_ENCOUNTER_WATER):
+                            reach.add((nx, ny))
+                            todo.append((nx, ny))
             for dx, dy in WINDOW:
                 u = tile(x + dx, y + dy)
+                if encounter == TILE_ENCOUNTER_LAND and (x + dx, y + dy) not in reach:
+                    continue
                 if u and u[1] == encounter and not u[2] and (x + dx, y + dy) not in taken:
                     n += 1
                     grass += u[0] == 0x02

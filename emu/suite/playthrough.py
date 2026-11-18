@@ -574,6 +574,8 @@ def main(cls=None):
             print(f"{name}: {time.time() - t1:.0f}s, " + "; ".join(("PASS " if ok else "FAIL ") + c
                                                                 for c, ok, _ in p.results[n:]), flush=True)
     except Exception as e:  # a stalled game or a lost emulator: record it, still write the results
+        import traceback
+        traceback.print_exc()
         p.record("stall", False, f"{type(e).__name__}: {e}")
     finally:
         emu.stop()

@@ -25,7 +25,7 @@ from lib import SUBSTRUCT_ORDERS  # noqa: E402
 TRAIN = {
     "brock": (14, "ViridianForest", "PewterCity_PokemonCenter_1F"),
     "misty": (24, "Route25", "CeruleanCity_PokemonCenter_1F"),
-    "surge": (30, "DiglettsCave_B1F", "VermilionCity_PokemonCenter_1F"),
+    "surge": (34, "DiglettsCave_B1F", "VermilionCity_PokemonCenter_1F"),
     "erika": (36, "DiglettsCave_B1F", "VermilionCity_PokemonCenter_1F"),
     "snorlax": (40, "Route15", "FuchsiaCity_PokemonCenter_1F"),
     "koga": (44, "Route15", "FuchsiaCity_PokemonCenter_1F"),
@@ -109,11 +109,28 @@ class RealTeam(P.Playthrough):
         if cb2 == g.a("CB2_RunPokemonSummaryScreen"):
             self.forget_move()
             return
-        if cb2 == g.a("CB2_UpdatePartyMenu") and self.read(g.a("gPartyMenu") + 9, 1)[0] == 0:
-            g.cmd("press Down 4", "wait 10")  # off the fainted lead (not inside the SHIFT / SUMMARY menu)
+        if cb2 == g.a("CB2_UpdatePartyMenu"):
+            self.send_next()
+            return
         if self.controller() in self.choose_move:
             self.best_move()
         g.cmd("press A 4", "wait 20")
+
+    def send_next(self):
+        """The party menu after a faint: close any SHIFT / SUMMARY box (B can't leave this menu), move the
+        cursor to the first Pokemon after the lead with HP left, then A and SHIFT. A fainted Pokemon under the
+        cursor would only say it can't battle, over and over."""
+        g = self.g
+        live = [i for i in range(1, self.party_count()) if self.party_state(i)[0]]
+        if not live:
+            g.cmd("press A 4", "wait 20")
+            return
+        g.cmd("press B 4", "wait 20")
+        for _ in range(8):
+            if self.read(g.a("gPartyMenu") + 9, 1)[0] == live[0]:
+                break
+            g.cmd("press Down 4", "wait 10")
+        g.cmd("press A 4", "wait 30", "press A 4", "wait 60")
 
     def best_move(self):
         """In the move menu, the cursor to the move that does the most damage to the foe (2 x 2 menu)."""

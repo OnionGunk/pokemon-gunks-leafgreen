@@ -19,6 +19,7 @@ sys.path.insert(0, HERE)
 import dexnav_areas  # noqa: E402
 import playthrough as P  # noqa: E402
 import story  # noqa: E402
+from features import SB1_BAG_TMHM  # noqa: E402
 from lib import SUBSTRUCT_ORDERS  # noqa: E402
 
 # the lead's level before each fight, where it trains, the Pokemon Center it heals at
@@ -39,6 +40,8 @@ CATCH_CENTER = {"Route1": "ViridianCity_PokemonCenter_1F", "Route25": "CeruleanC
                 "Route15": "FuchsiaCity_PokemonCenter_1F"}
 SPOTS = {P.ROUTE1[0]: P.ROUTE1[1], P.ROUTE25[0]: P.ROUTE25[1], P.ROUTE15[0]: P.ROUTE15[1]}
 RETRIES = 2
+ITEM_TM01, ITEM_HM01 = 289, 339
+CHAPTER_ORDER = P.CHAPTERS
 EFFECT_EXPLOSION, EFFECT_DREAM_EATER, EFFECT_FOCUS_PUNCH = 7, 8, 170
 TWO_TURN = {13, 19, 63, 76, 91, 130, 143, 291}  # Razor Wind, Fly, Hyper Beam, Solar Beam, Dig, Skull Bash, Sky Attack, Dive
 
@@ -175,6 +178,61 @@ class RealTeam(P.Playthrough):
         print(f"  forget: slot {slot} moves {moves} scores {[round(s) for s in scores]} -> {moves[k]}", flush=True)
         g.cmd("press A 4", "wait 40")
 
+    # --- TMs and HMs ---
+    def teach_tms(self):
+        """What a player does with the TM Case before a boss: each party Pokemon learns the TMs and HMs in the
+        bag that it can learn and that beat its weakest move, replacing that move (TMs are reusable here)."""
+        g = self.g
+        owned = [i for i in self.pocket_ids(SB1_BAG_TMHM, 58) if ITEM_TM01 <= i < ITEM_TM01 + 58]
+        tm_moves = struct.unpack("<58H", self.read(g.a("sTMHMMoves"), 116))
+        for slot in range(self.party_count()):
+            species = self.mon(slot)["species"]
+            lo, hi = struct.unpack("<II", self.read(g.a("sTMHMLearnsets") + species * 8, 8))
+            bits = lo | hi << 32
+            info = self.read(g.a("gSpeciesInfo") + species * 28, 28)
+            types = (info[6], info[7])
+            for item in owned:
+                n = item - ITEM_TM01
+                move = tm_moves[n]
+                if not (bits >> n) & 1:
+                    continue
+                moves = self.party_state(slot)[3]
+                if move in moves:
+                    continue
+                scores = [self.score(m, types, ()) for m in moves]
+                k = scores.index(min(scores))
+                if self.score(move, types, ()) <= scores[k]:
+                    continue
+                self.set_move(slot, k, move)
+                print(f"  TM: slot {slot} species {species} {moves[k]} -> {move}", flush=True)
+
+    def set_move(self, slot, k, move):
+        """Move <k> of party slot <slot> becomes <move> with full PP (the A substruct, checksum re-done)."""
+        g = self.g
+        addr = g.a("gPlayerParty") + slot * 100
+        raw = bytearray(self.read(addr, 100))
+        pid, otid = struct.unpack_from("<II", raw, 0)
+        key = pid ^ otid
+        dec = bytearray(b"".join(struct.pack("<I", struct.unpack_from("<I", raw, 0x20 + i)[0] ^ key)
+                                 for i in range(0, 48, 4)))
+        at = SUBSTRUCT_ORDERS[pid % 24].index("A") * 12
+        struct.pack_into("<H", dec, at + 2 * k, move)
+        dec[at + 8 + k] = self.read(g.a("gBattleMoves") + move * 12 + 4, 1)[0]
+        pp_bonuses_at = SUBSTRUCT_ORDERS[pid % 24].index("G") * 12 + 8
+        dec[pp_bonuses_at] &= ~(3 << (2 * k)) & 0xFF
+        struct.pack_into("<H", raw, 0x1C, sum(struct.unpack_from("<24H", dec)) & 0xFFFF)
+        for i in range(0, 48, 4):
+            struct.pack_into("<I", raw, 0x20 + i, struct.unpack_from("<I", dec, i)[0] ^ key)
+        self.poke(addr, raw)
+
+    def pick_up_hms(self, name):
+        """HMs a player has picked up by this boss that the scripted chapters skip: Fly (Route 16), Surf (the
+        Safari Zone) and Strength (the Safari Zone's warden), all reachable before Koga."""
+        if CHAPTER_ORDER.index(name) >= CHAPTER_ORDER.index("koga"):
+            for hm in (2, 3, 4):
+                if ITEM_HM01 + hm - 1 not in self.pocket_ids(SB1_BAG_TMHM, 58):
+                    self.give(SB1_BAG_TMHM, 58, ITEM_HM01 + hm - 1, 1)
+
     # --- training ---
     def training_spot(self, folder):
         """(x, y, axis): a land-encounter tile in a row or column ("h" or "v") of 5 or more such tiles, out of every trainer's line of sight, with no
@@ -286,6 +344,8 @@ class RealTeam(P.Playthrough):
         for attempt in range(RETRIES + 1):
             if target:
                 self.grind(name, target + 4 * attempt)
+            self.pick_up_hms(name)
+            self.teach_tms()
             if name == "snorlax":
                 self.set_flag(P.FLAG_GOT_POKE_FLUTE)
                 self.give(P.SB1_BAG_KEY, 30, P.ITEM_POKE_FLUTE, 1)
@@ -305,6 +365,8 @@ class RealTeam(P.Playthrough):
         g = self.g
         for attempt in range(RETRIES + 1):
             self.grind("league", TRAIN["league"][0] + 4 * attempt)
+            self.pick_up_hms("league")
+            self.teach_tms()
             self.travel("IndigoPlateau_PokemonCenter_1F", 4, 2)
             g.wait_field(press="B", max_steps=60)
             g.cmd("press Up 16", "wait 120")

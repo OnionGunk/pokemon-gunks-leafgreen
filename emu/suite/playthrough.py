@@ -322,6 +322,9 @@ class Playthrough(Screen):
         folder, spot = place
         self.travel(folder, *spot)
         g.wait_field(press="B", max_steps=60)
+        # a Pokemon Center visit after the last fight: a poisoned lead could faint mid-catch, and B at
+        # "Use next Pokemon?" means NO, which runs from the battle
+        self.heal_before_catch(folder)
         self.clear_flag(FLAG_GUNK_ENDLESS_REPEL_ON)
         ran = self.wild_battle(spot) and self.quick_run()
         self.record(f"{name}: Quick Run from a wild battle", ran, f"back in the field {ran}")
@@ -341,18 +344,24 @@ class Playthrough(Screen):
         g.wait_field(press="B", max_steps=40)  # the search level message
         party = self.party_count()
         caught = False
+        after = search
         if search["active"]:
             self.walk_to(search["x"], search["y"])
             for _ in range(30):
                 if self.in_battle():
                     break
                 g.cmd("wait 10")
+            after = self.search()
             caught = self.in_battle() and self.quick_ball()
         self.shot(f"{name}_caught.png")
         got = self.party_species()[-1] if self.party_count() > party else None
         self.record(f"{name}: DexNav search and Quick Ball catch", caught and got and got[0] == search["species"],
-                    f"searched species {search['species']} (active {search['active']}), caught {got}, "
+                    f"searched species {search['species']} (active {search['active']}) at "
+                    f"({search['x']}, {search['y']}), player at {self.pos()}, active on arrival {after['active']}, caught {got}, "
                     f"Poke Balls left {self.bag_count(ITEM_POKE_BALL, SB1_BALLS, BALL_SLOTS)}")
+
+    def heal_before_catch(self, folder):
+        self.heal()
 
     def dex_seen(self, species):
         return self.g.u8(self.sb2() + 0x5C + (species - 1) // 8) >> ((species - 1) % 8) & 1
@@ -546,11 +555,11 @@ class Playthrough(Screen):
             self.end_chapter(name)
 
 
-def main():
+def main(cls=None):
     rom, elf = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
     first = sys.argv[3] if len(sys.argv) > 3 else CHAPTERS[0]
     last = sys.argv[4] if len(sys.argv) > 4 else CHAPTERS[-1]
-    p = Playthrough(rom, elf)
+    p = (cls or Playthrough)(rom, elf)
     t0 = time.time()
     import emu
     todo = CHAPTERS[CHAPTERS.index(first):CHAPTERS.index(last) + 1]

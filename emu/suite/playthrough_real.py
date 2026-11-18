@@ -1,0 +1,338 @@
+"""The playthrough with the real team: py -3 emu/suite/playthrough_real.py <rom.gba> <rom.elf> [first] [last]
+
+playthrough.py sets the lead's level, moves and stats before each boss and heals the party by writing to it. Here
+nothing writes to the party: the team is the starter and what the DexNav catches on the way, trained in wild
+battles near each boss, healed by a Pokemon Center's nurse, learning moves at level-ups (forgetting the weakest)
+and evolving as it goes. Each battle turn picks the move that does the most damage (power, type matchup, STAB,
+accuracy). A lost fight (a white-out) is retried after training 4 levels higher, twice at most.
+
+What still stands in for a player's hours: travel (the continue warp, as in playthrough.py) and the Poke Flute.
+Chapters, savestates and results as in playthrough.py, in out/<rom>/playthrough_real/.
+"""
+import os
+import struct
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import dexnav_areas  # noqa: E402
+import playthrough as P  # noqa: E402
+import story  # noqa: E402
+from lib import SUBSTRUCT_ORDERS  # noqa: E402
+
+# the lead's level before each fight, where it trains, the Pokemon Center it heals at
+TRAIN = {
+    "brock": (14, "ViridianForest", "PewterCity_PokemonCenter_1F"),
+    "misty": (24, "Route25", "CeruleanCity_PokemonCenter_1F"),
+    "surge": (30, "DiglettsCave_B1F", "VermilionCity_PokemonCenter_1F"),
+    "erika": (36, "DiglettsCave_B1F", "VermilionCity_PokemonCenter_1F"),
+    "snorlax": (40, "Route15", "FuchsiaCity_PokemonCenter_1F"),
+    "koga": (44, "Route15", "FuchsiaCity_PokemonCenter_1F"),
+    "sabrina": (48, "PowerPlant", "Route10_PokemonCenter_1F"),
+    "blaine": (52, "PokemonMansion_1F", "CinnabarIsland_PokemonCenter_1F"),
+    "giovanni": (56, "PokemonMansion_B1F", "CinnabarIsland_PokemonCenter_1F"),
+    "league": (66, "VictoryRoad_2F", "IndigoPlateau_PokemonCenter_1F"),
+}
+# the DexNav catches' Pokemon Centers
+CATCH_CENTER = {"Route1": "ViridianCity_PokemonCenter_1F", "Route25": "CeruleanCity_PokemonCenter_1F",
+                "Route15": "FuchsiaCity_PokemonCenter_1F"}
+SPOTS = {P.ROUTE1[0]: P.ROUTE1[1], P.ROUTE25[0]: P.ROUTE25[1], P.ROUTE15[0]: P.ROUTE15[1]}
+RETRIES = 2
+EFFECT_EXPLOSION, EFFECT_DREAM_EATER, EFFECT_FOCUS_PUNCH = 7, 8, 170
+TWO_TURN = {13, 19, 63, 76, 91, 130, 143, 291}  # Razor Wind, Fly, Hyper Beam, Solar Beam, Dig, Skull Bash, Sky Attack, Dive
+
+
+class RealTeam(P.Playthrough):
+    def __init__(self, rom, elf):
+        super().__init__(rom, elf)
+        self.out = os.path.join(HERE, "out", os.path.splitext(os.path.basename(rom))[0], "playthrough_real")
+        os.makedirs(self.out, exist_ok=True)
+        self.attrs = dexnav_areas.tileset_attrs()
+        self.layouts = story.layouts()
+        self.spots = {}
+        self._moves = {}
+        self._chart = None
+        self.battles = 0
+
+    # --- the game's data ---
+    def move_data(self, move):
+        if move not in self._moves:
+            raw = self.read(self.g.a("gBattleMoves") + move * 12, 12)
+            self._moves[move] = {"effect": raw[0], "power": raw[1], "type": raw[2], "acc": raw[3]}
+        return self._moves[move]
+
+    def effectiveness(self, atk, types):
+        if self._chart is None:
+            self._chart = self.read(self.g.a("gTypeEffectiveness"), 336)
+        mult = 1.0
+        for i in range(0, 336, 3):
+            a, d, m = self._chart[i:i + 3]
+            if a == 0xFF:
+                break
+            if a == 0xFE:
+                continue
+            if a == atk and d in types:
+                mult *= m / 10
+        return mult
+
+    def score(self, move, my_types, foe_types):
+        if not move:
+            return -1
+        d = self.move_data(move)
+        if d["power"] <= 1 or d["effect"] in (EFFECT_EXPLOSION, EFFECT_DREAM_EATER, EFFECT_FOCUS_PUNCH):
+            return 0  # status moves, fixed-damage ones (power 1), and moves that need setting up
+        s = d["power"] * self.effectiveness(d["type"], foe_types) * (1.5 if d["type"] in my_types else 1)
+        s *= (d["acc"] or 100) / 100
+        return s / 2 if move in TWO_TURN else s
+
+    def party_state(self, slot):
+        """(hp, max hp, status, moves, pp) of a party slot"""
+        raw = self.read(self.g.a("gPlayerParty") + slot * 100, 100)
+        pid, otid = struct.unpack_from("<II", raw, 0)
+        key = pid ^ otid
+        dec = b"".join(struct.pack("<I", struct.unpack_from("<I", raw, 0x20 + i)[0] ^ key) for i in range(0, 48, 4))
+        at = SUBSTRUCT_ORDERS[pid % 24].index("A") * 12
+        moves = list(struct.unpack_from("<4H", dec, at))
+        pp = list(dec[at + 8:at + 12])
+        status, = struct.unpack_from("<I", raw, 0x50)
+        hp, maxhp = struct.unpack_from("<HH", raw, 0x56)
+        return hp, maxhp, status, moves, pp
+
+    def lead_level(self):
+        return self.read(self.g.a("gPlayerParty"), 100)[0x54]
+
+    # --- battles ---
+    def press_a(self):
+        g = self.g
+        cb2 = self.callback2()
+        if cb2 == g.a("CB2_RunPokemonSummaryScreen"):
+            self.forget_move()
+            return
+        if cb2 == g.a("CB2_UpdatePartyMenu") and self.read(g.a("gPartyMenu") + 9, 1)[0] == 0:
+            g.cmd("press Down 4", "wait 10")  # off the fainted lead (not inside the SHIFT / SUMMARY menu)
+        if self.controller() in self.choose_move:
+            self.best_move()
+        g.cmd("press A 4", "wait 20")
+
+    def best_move(self):
+        """In the move menu, the cursor to the move that does the most damage to the foe (2 x 2 menu)."""
+        g = self.g
+        bm = g.a("gBattleMons")
+        me, foe = self.read(bm, 0x58), self.read(bm + 0x58, 0x58)
+        moves = struct.unpack_from("<4H", me, 0x0C)
+        pp = me[0x24:0x28]
+        mine, theirs = (me[0x21], me[0x22]), (foe[0x21], foe[0x22])
+        scores = [self.score(m, mine, theirs) if pp[i] else -1 for i, m in enumerate(moves)]
+        if max(scores) < 0:
+            return  # no PP at all: the game uses Struggle
+        k = scores.index(max(scores))
+        cur = g.u8(g.a("gMoveSelectionCursor"))
+        if cur % 2 != k % 2:
+            g.cmd(f"press {'Right' if k % 2 else 'Left'} 4", "wait 10")
+        if cur // 2 != k // 2:
+            g.cmd(f"press {'Down' if k // 2 else 'Up'} 4", "wait 10")
+
+    def forget_move(self):
+        """The summary screen asking which move to forget: the weakest of the four and the new one."""
+        g = self.g
+        g.cmd("wait 40")
+        slot = g.u8(g.a("sLastViewedMonIndex"))
+        _, _, _, moves, _ = self.party_state(slot)
+        new = self.u16(g.a("gMoveToLearn"))
+        if not new or 0 in moves or new in moves:  # a summary screen, but no move to forget: back out
+            g.cmd("press B 4", "wait 30")
+            return
+        moves = moves + [new]
+        species = self.mon(slot)["species"]
+        info = self.read(g.a("gSpeciesInfo") + species * 28, 28)
+        types = (info[6], info[7])
+        # against no type in particular: power, STAB and accuracy; a status move scores 0 and goes first
+        scores = [self.score(m, types, ()) for m in moves]
+        k = scores.index(min(scores))
+        for _ in range(8):
+            cur = g.u8(g.a("sMoveSelectionCursorPos"))
+            if cur == k:
+                break
+            g.cmd(f"press {'Down' if k > cur else 'Up'} 4", "wait 12")
+        print(f"  forget: slot {slot} moves {moves} scores {[round(s) for s in scores]} -> {moves[k]}", flush=True)
+        g.cmd("press A 4", "wait 40")
+
+    # --- training ---
+    def training_spot(self, folder):
+        """(x, y, axis): a land-encounter tile in a row or column ("h" or "v") of 5 or more such tiles, out of every trainer's line of sight, with no
+        event on its middle 5 tiles: the walk goes 2 tiles each way from it."""
+        if folder in self.spots:
+            return self.spots[folder]
+        m = self.maps[folder]
+        w, h, tile = dexnav_areas.map_tiles(m, self.layouts, self.attrs)
+        taken = {(o["x"], o["y"]) for key in ("object_events", "warp_events", "coord_events", "bg_events")
+                 for o in m.get(key) or []}
+        trainers = [(o["x"], o["y"], int(o.get("trainer_sight_or_berry_tree_id") or 0) + 2)
+                    for o in m.get("object_events") or [] if o.get("trainer_type") not in (None, "TRAINER_TYPE_NONE", "0")]
+
+        def ok(x, y):
+            t = tile(x, y)
+            if t is None or t[2] or t[1] != dexnav_areas.TILE_ENCOUNTER_LAND or t[0] not in dexnav_areas.PLAIN:
+                return False
+            if (x, y) in taken:
+                return False
+            return not any((tx == x and abs(ty - y) <= r) or (ty == y and abs(tx - x) <= r) for tx, ty, r in trainers)
+
+        best = None
+        for y in range(h):
+            for x in range(w):
+                for axis, (dx, dy) in (("h", (1, 0)), ("v", (0, 1))):
+                    if all(ok(x + d * dx, y + d * dy) for d in range(-2, 3)):
+                        # prefer a run that goes on, then a horizontal one, then the map's middle
+                        run = sum(ok(x + d * dx, y + d * dy) for d in range(-4, 5))
+                        key = (run, axis == "h", -abs(x - w // 2) - abs(y - h // 2))
+                        if best is None or key > best[0]:
+                            best = (key, (x, y, axis))
+        if best is None:
+            raise RuntimeError(f"no training spot on {folder}")
+        self.spots[folder] = best[1]
+        return best[1]
+
+    def nurse_heal(self, center):
+        """Talk to the Pokemon Center's nurse across the counter and say YES."""
+        g = self.g
+        nurse = next(o for o in self.maps[center]["object_events"] if "Nurse" in o["script"])
+        self.travel(center, nurse["x"], nurse["y"] + 2)
+        g.wait_field(press="B", max_steps=60)
+        g.cmd("press Up 2", "wait 10", "press A 4", "wait 30")
+        self.mash(400)
+        hp, maxhp, *_ = self.party_state(0)
+        return hp == maxhp
+
+    def needs_heal(self):
+        hp, maxhp, status, moves, pp = self.party_state(0)
+        damaging = [pp[i] for i, m in enumerate(moves) if m and self.score(m, (), ()) > 0]
+        return hp * 2 < maxhp or status or not any(damaging)
+
+    def find_battle(self, spot):
+        """Walk 2 tiles each way along the row (or column) until a wild battle starts."""
+        g = self.g
+        x, y, axis = spot
+        keys = ("Left", "Right") if axis == "h" else ("Up", "Down")
+        self.walk_to(x, y)
+        for i in range(800):
+            g.cmd(f"press {keys[(i // 2) % 2]} 8", "wait 6")
+            if self.in_battle():
+                return True
+            if i % 40 == 39:
+                px, py = self.pos()
+                if abs(px - x) + abs(py - y) > 2 or (px != x and py != y):
+                    self.walk_to(x, y)  # pushed off the row (a scene, a trainer): back to it
+        return False
+
+    def grind(self, name, level):
+        """Wild battles at the chapter's training spot until the lead is Lv. <level>."""
+        g = self.g
+        _, folder, center = TRAIN[name]
+        spot = self.training_spot(folder)
+        start, t0, n = self.lead_level(), time.time(), 0
+        self.nurse_heal(center)
+        self.travel(folder, *spot[:2])
+        g.wait_field(press="B", max_steps=60)
+        self.clear_flag(P.FLAG_GUNK_ENDLESS_REPEL_ON)
+        while self.lead_level() < level:
+            if not self.find_battle(spot):
+                raise RuntimeError(f"no wild battle on {folder} at {spot}")
+            if not self.fight():
+                raise RuntimeError(f"a wild battle on {folder} never ended")
+            n += 1
+            if n % 10 == 0:
+                print(f"  {name}: {n} battles, lead Lv. {self.lead_level()}, party {self.party_species()}", flush=True)
+            if self.needs_heal() or not self.at(folder):  # low, or whited out to a Pokemon Center
+                self.nurse_heal(center)
+                self.travel(folder, *spot[:2])
+                g.wait_field(press="B", max_steps=60)
+            if n > 2000:
+                raise RuntimeError(f"{n} battles on {folder} and the lead is still Lv. {self.lead_level()}")
+        self.battles += n
+        self.record(f"{name}: trained on {folder}", True, f"Lv. {start} -> {self.lead_level()} in {n} wild battles, "
+                    f"{time.time() - t0:.0f}s, party {self.party_species()}")
+        self.nurse_heal(center)
+
+    # --- chapters that train ---
+    def train(self, slot, level, move):
+        raise AssertionError("the real team is never set up")
+
+    def heal_before_catch(self, folder):
+        self.nurse_heal(CATCH_CENTER[folder])
+        self.travel(folder, *SPOTS[folder])
+
+    def boss(self, name):
+        folder, person, level, move, done = P.BOSSES[name]
+        target = TRAIN[name][0] if name in TRAIN else None
+        for attempt in range(RETRIES + 1):
+            if target:
+                self.grind(name, target + 4 * attempt)
+            if name == "snorlax":
+                self.set_flag(P.FLAG_GOT_POKE_FLUTE)
+                self.give(P.SB1_BAG_KEY, 30, P.ITEM_POKE_FLUTE, 1)
+            self.go_talk(folder, person)
+            if name == "snorlax":
+                self.g.cmd("wait 30", "press A 4", "wait 30")
+            won = self.fight()
+            if won and self.flag(done) == 1:
+                break
+            self.shot(f"{name}_lost{attempt}.png")
+            print(f"  {name}: lost (attempt {attempt + 1}), party {self.party_species()}", flush=True)
+        self.shot(f"{name}_after.png")
+        self.record(f"{name}: played through", won and self.flag(done) == 1,
+                    f"field {won}, flag {self.flag(done)}, attempts {attempt + 1}, party {self.party_species()}")
+
+    def league(self):
+        g = self.g
+        for attempt in range(RETRIES + 1):
+            self.grind("league", TRAIN["league"][0] + 4 * attempt)
+            self.travel("IndigoPlateau_PokemonCenter_1F", 4, 2)
+            g.wait_field(press="B", max_steps=60)
+            g.cmd("press Up 16", "wait 120")
+            lost = None
+            for folder, person, _, done in P.LEAGUE:
+                self.mash(300)
+                if not self.at(folder):
+                    lost = f"not in {folder}: map {self.map_id()} {self.pos()}"
+                    break
+                self.face_talk(person)
+                won = self.fight()
+                self.shot(f"{folder}_after.png")
+                if not (won and self.flag(done) == 1):
+                    lost = f"{folder}: field {won}, flag {self.flag(done)}, party {self.party_species()}"
+                    break
+                self.record(f"league: {folder}", True, f"party {self.party_species()}, attempt {attempt + 1}")
+                px, py = person
+                self.walk_to(px - 1, py)
+                door = (6, 5) if "Lance" in folder else (6, 2)
+                self.walk_to(px - 1, door[1] + 1)
+                self.walk_to(door[0], door[1] + 1)
+                if "Lance" not in folder:
+                    g.cmd("press Up 16", "wait 120")
+            if lost is None:
+                g.cmd(f"save {os.path.join(self.out, 'league.State')}")
+                return
+            print(f"  league: lost (attempt {attempt + 1}): {lost}", flush=True)
+        self.record("league: the Elite Four", False, lost)
+
+    def champion(self):
+        # no training: the team from Lance's room, as a player has it (P.Playthrough.champion trains first)
+        self.train = lambda *a: None
+        try:
+            super().champion()
+        finally:
+            del self.train
+
+
+def main():
+    t0 = time.time()
+    try:
+        P.main(RealTeam)
+    finally:
+        print(f"total {time.time() - t0:.0f}s", flush=True)
+
+
+if __name__ == "__main__":
+    main()

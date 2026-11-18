@@ -179,6 +179,7 @@ void Gunk_ShowDexNavScreen(void)
 {
     QuestLog_CutRecording();
     LockPlayerFieldControls();
+    Gunk_DexNavPrepareTiles(); // behind the black fade: the search's start doesn't pay for it
     SetMainCallback2(CB2_InitDexNavScreen);
 }
 

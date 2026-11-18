@@ -36,6 +36,7 @@ u16 Gunk_DexNavChainSpecies(void);
 u8 Gunk_DexNavSearchLevel(u16 species);
 u8 Gunk_DexNavChain(u16 species);
 u8 Gunk_DexNavDefaultRow(void);
+void Gunk_DexNavPrepareTiles(void);
 void Gunk_DexNavStartSearch(void);
 const struct GunkDexNavRoll *Gunk_DexNavSearchRoll(u16 *species);
 bool8 Gunk_DexNavHeldItem(u16 *item);

@@ -598,6 +598,39 @@ static void MarkWalkable(s16 px, s16 py, bool8 *walkable)
     }
 }
 
+// The window's land patch tiles and the tiles the player can walk to, worked out while the DexNav screen loads
+// behind its black fade (Gunk_ShowDexNavScreen), so the search's start doesn't pay for them: they cost it 2 of its
+// 5 frames. Used only if the player still stands where they were worked out, on the same map.
+static EWRAM_DATA struct {
+    s16 x, y;
+    u8 mapGroup, mapNum;
+    bool8 valid;
+    bool8 land[WINDOW_W * WINDOW_H];
+    bool8 walkable[WINDOW_W * WINDOW_H];
+} sTiles = {0};
+
+static void FillTiles(s16 px, s16 py)
+{
+    u8 i;
+
+    MarkWalkable(px, py, sTiles.walkable);
+    for (i = 0; i < WINDOW_W * WINDOW_H; i++)
+        sTiles.land[i] = IsLandPatchTile(px + i % WINDOW_W - WINDOW_HALF_W, py + i / WINDOW_W - WINDOW_HALF_H);
+    sTiles.x = px;
+    sTiles.y = py;
+    sTiles.mapGroup = gSaveBlock1Ptr->location.mapGroup;
+    sTiles.mapNum = gSaveBlock1Ptr->location.mapNum;
+    sTiles.valid = TRUE;
+}
+
+void Gunk_DexNavPrepareTiles(void)
+{
+    s16 px, py;
+
+    PlayerGetDestCoords(&px, &py);
+    FillTiles(px, py);
+}
+
 // special: VAR_0x8005 = the list row chosen. Places the patch; VAR_RESULT = TRUE if it found grass (or water) for it.
 // STR_VAR_1 = the species' name (or "?????" if unseen), STR_VAR_2 = its search level, VAR_0x8006 = TRUE if it searches the water.
 void Gunk_DexNavStartSearch(void)
@@ -607,7 +640,6 @@ void Gunk_DexNavStartSearch(void)
     s16 candidatesY[(2 * PATCH_MAX_DIST + 1) * (2 * PATCH_MAX_DIST + 1)];
     u16 count = 0, pick;
     u16 species;
-    bool8 walkable[WINDOW_W * WINDOW_H];
     u8 pass;
 
     gSpecialVar_Result = FALSE;
@@ -629,8 +661,10 @@ void Gunk_DexNavStartSearch(void)
 
     // a land encounter tile (or surfable water) in sight, 2 to 5 tiles away, that the player could walk (or surf) onto
     PlayerGetDestCoords(&px, &py);
-    if (!gSpecialVar_0x8006)
-        MarkWalkable(px, py, walkable);
+    if (!gSpecialVar_0x8006 && (!sTiles.valid || sTiles.x != px || sTiles.y != py
+     || sTiles.mapGroup != gSaveBlock1Ptr->location.mapGroup || sTiles.mapNum != gSaveBlock1Ptr->location.mapNum))
+        FillTiles(px, py);
+    sTiles.valid = FALSE;
     // land: first only the tiles the player can walk to; with none of those, any in sight (behind a fence, as on
     // Route 13's shore, the patch is still there to see)
     for (pass = 0; pass < 2 && count == 0; pass++)
@@ -649,8 +683,8 @@ void Gunk_DexNavStartSearch(void)
                     if (!MetatileBehavior_IsSurfableAndNotWaterfall(MapGridGetMetatileBehaviorAt(x, y)))
                         continue;
                 }
-                else if (!IsLandPatchTile(x, y)
-                      || (pass == 0 && !walkable[(y - py + WINDOW_HALF_H) * WINDOW_W + x - px + WINDOW_HALF_W]))
+                else if (!sTiles.land[(y - py + WINDOW_HALF_H) * WINDOW_W + x - px + WINDOW_HALF_W]
+                      || (pass == 0 && !sTiles.walkable[(y - py + WINDOW_HALF_H) * WINDOW_W + x - px + WINDOW_HALF_W]))
                 {
                     continue;
                 }

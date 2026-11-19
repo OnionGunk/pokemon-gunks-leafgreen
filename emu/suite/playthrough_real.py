@@ -408,6 +408,8 @@ class RealTeam(P.Playthrough):
                     lost = f"{folder}: field {won}, flag {self.flag(done)}, party {self.party_species()}"
                     break
                 self.record(f"league: {folder}", True, f"party {self.party_species()}, attempt {attempt + 1}")
+                # between rooms a player uses the Full Restores and Revives from the Indigo Plateau's mart
+                self.heal()
                 px, py = person
                 self.walk_to(px - 1, py)
                 door = (6, 5) if "Lance" in folder else (6, 2)

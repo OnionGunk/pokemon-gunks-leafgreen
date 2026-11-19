@@ -33,7 +33,7 @@ TRAIN = {
     "sabrina": (48, "PowerPlant", "Route10_PokemonCenter_1F"),
     "blaine": (52, "PokemonMansion_1F", "CinnabarIsland_PokemonCenter_1F"),
     "giovanni": (56, "PokemonMansion_B1F", "CinnabarIsland_PokemonCenter_1F"),
-    "league": (66, "VictoryRoad_2F", "IndigoPlateau_PokemonCenter_1F"),
+    "league": (70, "VictoryRoad_2F", "IndigoPlateau_PokemonCenter_1F"),
 }
 # the DexNav catches' Pokemon Centers
 CATCH_CENTER = {"Route1": "ViridianCity_PokemonCenter_1F", "Route25": "CeruleanCity_PokemonCenter_1F",
@@ -56,6 +56,7 @@ class RealTeam(P.Playthrough):
         self.spots = {}
         self._moves = {}
         self._chart = None
+        self._hms = None
         self.battles = 0
 
     # --- the game's data ---
@@ -168,15 +169,38 @@ class RealTeam(P.Playthrough):
         info = self.read(g.a("gSpeciesInfo") + species * 28, 28)
         types = (info[6], info[7])
         # against no type in particular: power, STAB and accuracy; a status move scores 0 and goes first
-        scores = [self.score(m, types, ()) for m in moves]
+        scores = [self.keep_score(m, types) for m in moves]
         k = scores.index(min(scores))
         for _ in range(8):
             cur = g.u8(g.a("sMoveSelectionCursorPos"))
             if cur == k:
                 break
             g.cmd(f"press {'Down' if k > cur else 'Up'} 4", "wait 12")
-        print(f"  forget: slot {slot} moves {moves} scores {[round(s) for s in scores]} -> {moves[k]}", flush=True)
+        print(f"  forget: slot {slot} moves {moves} scores {[s if s == float('inf') else round(s) for s in scores]} -> {moves[k]}", flush=True)
         g.cmd("press A 4", "wait 40")
+
+    def stuck_where(self):
+        """Where a battle is stuck: callback2, the player's controller function, both battlers' species and HP
+        and the player's moves and PP."""
+        g = self.g
+        names = {v: k for k, v in g.sym.items()}
+        bm = g.a("gBattleMons")
+        me, foe = self.read(bm, 0x58), self.read(bm + 0x58, 0x58)
+        return (f"callback2 {names.get(self.callback2(), hex(self.callback2()))}, controller "
+                f"{names.get(self.controller(), hex(self.controller()))}, me {struct.unpack_from('<H', me, 0)[0]} "
+                f"hp {struct.unpack_from('<H', me, 0x28)[0]} moves {struct.unpack_from('<4H', me, 0x0C)} "
+                f"pp {list(me[0x24:0x28])}, foe {struct.unpack_from('<H', foe, 0)[0]} hp "
+                f"{struct.unpack_from('<H', foe, 0x28)[0]}")
+
+    def hm_moves(self):
+        if self._hms is None:
+            self._hms = set(struct.unpack("<8H", self.read(self.g.a("sTMHMMoves") + 50 * 2, 16)))
+        return self._hms
+
+    def keep_score(self, move, types):
+        """A move's score against no type in particular, for choosing one to forget: an HM move can't be
+        forgotten ("HM moves can't be forgotten now"), so it scores above everything."""
+        return float("inf") if move in self.hm_moves() else self.score(move, types, ())
 
     # --- TMs and HMs ---
     def teach_tms(self):
@@ -199,7 +223,7 @@ class RealTeam(P.Playthrough):
                 moves = self.party_state(slot)[3]
                 if move in moves:
                     continue
-                scores = [self.score(m, types, ()) for m in moves]
+                scores = [self.keep_score(m, types) for m in moves]
                 k = scores.index(min(scores))
                 if self.score(move, types, ()) <= scores[k]:
                     continue
@@ -315,7 +339,8 @@ class RealTeam(P.Playthrough):
             if not self.find_battle(spot):
                 raise RuntimeError(f"no wild battle on {folder} at {spot}")
             if not self.fight():
-                raise RuntimeError(f"a wild battle on {folder} never ended")
+                self.shot(f"{name}_stuck.png")
+                raise RuntimeError(f"a wild battle on {folder} never ended: {self.stuck_where()}")
             n += 1
             if n % 10 == 0:
                 print(f"  {name}: {n} battles, lead Lv. {self.lead_level()}, party {self.party_species()}", flush=True)

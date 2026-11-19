@@ -46,7 +46,7 @@ CHAPTER_ORDER = P.CHAPTERS
 EFFECT_EXPLOSION, EFFECT_DREAM_EATER, EFFECT_FOCUS_PUNCH = 7, 8, 170
 # abilities that take a type's moves whole: Volt Absorb, Water Absorb, Flash Fire, Levitate -> the type
 IMMUNE_ABILITY = {10: 13, 11: 11, 18: 10, 26: 4}
-# The types a chapter's trainers field (FireRed, the rival on Bulbasaur's line), for picking moves that cover them:
+# The types a chapter's trainers field (the rival on Bulbasaur's line, since we chose Squirtle; the same in FireRed and LeafGreen), for picking moves that cover them:
 # Lorelei, Bruno, Agatha, Lance, then the Champion
 FOE_TYPES = {"league": [(11, 15), (11, 15), (11, 14), (15, 14), (11, 15),
                         (5, 4), (1, 1), (1, 1), (5, 4), (1, 1),

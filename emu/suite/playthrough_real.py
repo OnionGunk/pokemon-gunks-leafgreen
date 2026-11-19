@@ -9,6 +9,7 @@ accuracy). A lost fight (a white-out) is retried after training 4 levels higher,
 What still stands in for a player's hours: travel (the continue warp, as in playthrough.py) and the Poke Flute.
 Chapters, savestates and results as in playthrough.py, in out/<rom>/playthrough_real/.
 """
+import itertools
 import os
 import struct
 import sys
@@ -45,6 +46,14 @@ CHAPTER_ORDER = P.CHAPTERS
 EFFECT_EXPLOSION, EFFECT_DREAM_EATER, EFFECT_FOCUS_PUNCH = 7, 8, 170
 # abilities that take a type's moves whole: Volt Absorb, Water Absorb, Flash Fire, Levitate -> the type
 IMMUNE_ABILITY = {10: 13, 11: 11, 18: 10, 26: 4}
+# The types a chapter's trainers field (FireRed, the rival on Bulbasaur's line), for picking moves that cover them:
+# Lorelei, Bruno, Agatha, Lance, then the Champion
+FOE_TYPES = {"league": [(11, 15), (11, 15), (11, 14), (15, 14), (11, 15),
+                        (5, 4), (1, 1), (1, 1), (5, 4), (1, 1),
+                        (7, 3), (3, 2), (7, 3), (3, 3), (7, 3),
+                        (11, 2), (16, 16), (16, 16), (5, 2), (16, 2),
+                        (0, 2), (14, 14), (4, 5), (11, 2), (10, 10), (12, 3)]}
+COVER_CAP = 150  # a move past this on one foe counts no more: what matters is a good move for every foe
 TWO_TURN = {13, 19, 63, 76, 91, 130, 143, 291}  # Razor Wind, Fly, Hyper Beam, Solar Beam, Dig, Skull Bash, Sky Attack, Dive
 
 
@@ -220,6 +229,10 @@ class RealTeam(P.Playthrough):
             bits = lo | hi << 32
             info = self.read(g.a("gSpeciesInfo") + species * 28, 28)
             types = (info[6], info[7])
+            if name in FOE_TYPES:
+                learnable = [tm_moves[i - ITEM_TM01] for i in owned if (bits >> (i - ITEM_TM01)) & 1]
+                self.cover(slot, species, types, learnable, FOE_TYPES[name])
+                continue
             for item in owned:
                 n = item - ITEM_TM01
                 move = tm_moves[n]
@@ -235,6 +248,20 @@ class RealTeam(P.Playthrough):
                     continue
                 self.set_move(slot, k, move)
                 print(f"  TM: slot {slot} species {species} {moves[k]} -> {move}", flush=True)
+
+    def cover(self, slot, species, types, learnable, foes):
+        """The 4 moves, from those known and the TMs and HMs it can learn, with the best cover of <foes>: the sum
+        over the foes of the best move's score, each capped at COVER_CAP. On a tie the known moves stay; known moves keep their slots."""
+        moves = list(self.party_state(slot)[3])
+        pool = sorted({m for m in moves + learnable if m})
+        value = lambda ms: sum(min(COVER_CAP, max(self.score(m, types, f) for m in ms)) for f in foes)
+        best = max(itertools.combinations(pool, min(4, len(pool))), key=lambda ms: (value(ms), sum(m in moves for m in ms), ms))
+        new = [m for m in best if m not in moves]
+        for k, m in enumerate(moves):
+            if m not in best and new:
+                move = new.pop(0)
+                self.set_move(slot, k, move)
+                print(f"  TM: slot {slot} species {species} {m} -> {move}", flush=True)
 
     def set_move(self, slot, k, move):
         """Move <k> of party slot <slot> becomes <move> with full PP (the A substruct, checksum re-done)."""
@@ -257,7 +284,8 @@ class RealTeam(P.Playthrough):
 
     def pick_up_hms(self, name):
         """HMs a player has picked up by this boss that the scripted chapters skip: Fly (Route 16), Surf (the
-        Safari Zone) and Strength (the Safari Zone's warden), all reachable before Koga; for the League, Ice Beam."""
+        Safari Zone) and Strength (the Safari Zone's warden), all reachable before Koga; for the League, Ice Beam and
+        Brick Break."""
         if CHAPTER_ORDER.index(name) >= CHAPTER_ORDER.index("koga"):
             for hm in (2, 3, 4):
                 if ITEM_HM01 + hm - 1 not in self.pocket_ids(SB1_BAG_TMHM, 58):
@@ -265,6 +293,9 @@ class RealTeam(P.Playthrough):
         if name == "league" and ITEM_TM01 + 12 not in self.pocket_ids(SB1_BAG_TMHM, 58):
             # TM13 Ice Beam, from the Celadon Game Corner's prize room, for Lance's dragons
             self.give(SB1_BAG_TMHM, 58, ITEM_TM01 + 12, 1)
+        if name == "league" and ITEM_TM01 + 30 not in self.pocket_ids(SB1_BAG_TMHM, 58):
+            # TM31 Brick Break, from the S.S. Anne or the Celadon Department Store, for Lorelei's ice
+            self.give(SB1_BAG_TMHM, 58, ITEM_TM01 + 30, 1)
 
     # --- training ---
     def training_spot(self, folder):

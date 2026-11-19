@@ -43,6 +43,8 @@ RETRIES = 2
 ITEM_TM01, ITEM_HM01 = 289, 339
 CHAPTER_ORDER = P.CHAPTERS
 EFFECT_EXPLOSION, EFFECT_DREAM_EATER, EFFECT_FOCUS_PUNCH = 7, 8, 170
+# abilities that take a type's moves whole: Volt Absorb, Water Absorb, Flash Fire, Levitate -> the type
+IMMUNE_ABILITY = {10: 13, 11: 11, 18: 10, 26: 4}
 TWO_TURN = {13, 19, 63, 76, 91, 130, 143, 291}  # Razor Wind, Fly, Hyper Beam, Solar Beam, Dig, Skull Bash, Sky Attack, Dive
 
 
@@ -80,10 +82,12 @@ class RealTeam(P.Playthrough):
                 mult *= m / 10
         return mult
 
-    def score(self, move, my_types, foe_types):
+    def score(self, move, my_types, foe_types, foe_ability=None):
         if not move:
             return -1
         d = self.move_data(move)
+        if IMMUNE_ABILITY.get(foe_ability) == d["type"] and d["power"] > 1:
+            return 0  # Gengar and Koffing float over Earthquake; Lapras drinks Surf
         if d["power"] <= 1 or d["effect"] in (EFFECT_EXPLOSION, EFFECT_DREAM_EATER, EFFECT_FOCUS_PUNCH):
             return 0  # status moves, fixed-damage ones (power 1), and moves that need setting up
         s = d["power"] * self.effectiveness(d["type"], foe_types) * (1.5 if d["type"] in my_types else 1)
@@ -144,7 +148,7 @@ class RealTeam(P.Playthrough):
         moves = struct.unpack_from("<4H", me, 0x0C)
         pp = me[0x24:0x28]
         mine, theirs = (me[0x21], me[0x22]), (foe[0x21], foe[0x22])
-        scores = [self.score(m, mine, theirs) if pp[i] else -1 for i, m in enumerate(moves)]
+        scores = [self.score(m, mine, theirs, foe[0x20]) if pp[i] else -1 for i, m in enumerate(moves)]
         if max(scores) < 0:
             return  # no PP at all: the game uses Struggle
         k = scores.index(max(scores))
@@ -251,11 +255,14 @@ class RealTeam(P.Playthrough):
 
     def pick_up_hms(self, name):
         """HMs a player has picked up by this boss that the scripted chapters skip: Fly (Route 16), Surf (the
-        Safari Zone) and Strength (the Safari Zone's warden), all reachable before Koga."""
+        Safari Zone) and Strength (the Safari Zone's warden), all reachable before Koga; for the League, Ice Beam."""
         if CHAPTER_ORDER.index(name) >= CHAPTER_ORDER.index("koga"):
             for hm in (2, 3, 4):
                 if ITEM_HM01 + hm - 1 not in self.pocket_ids(SB1_BAG_TMHM, 58):
                     self.give(SB1_BAG_TMHM, 58, ITEM_HM01 + hm - 1, 1)
+        if name == "league" and ITEM_TM01 + 12 not in self.pocket_ids(SB1_BAG_TMHM, 58):
+            # TM13 Ice Beam, from the Celadon Game Corner's prize room, for Lance's dragons
+            self.give(SB1_BAG_TMHM, 58, ITEM_TM01 + 12, 1)
 
     # --- training ---
     def training_spot(self, folder):

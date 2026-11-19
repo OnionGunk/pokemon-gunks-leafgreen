@@ -207,9 +207,10 @@ class RealTeam(P.Playthrough):
         return float("inf") if move in self.hm_moves() else self.score(move, types, ())
 
     # --- TMs and HMs ---
-    def teach_tms(self):
+    def teach_tms(self, name):
         """What a player does with the TM Case before a boss: each party Pokemon learns the TMs and HMs in the
-        bag that it can learn and that beat its weakest move, replacing that move (TMs are reusable here)."""
+        bag that it can learn and that beat its weakest move, replacing that move (TMs are reusable here). From Koga on an HM move can go too: Fuchsia's Move Deleter
+        takes it off."""
         g = self.g
         owned = [i for i in self.pocket_ids(SB1_BAG_TMHM, 58) if ITEM_TM01 <= i < ITEM_TM01 + 58]
         tm_moves = struct.unpack("<58H", self.read(g.a("sTMHMMoves"), 116))
@@ -227,7 +228,8 @@ class RealTeam(P.Playthrough):
                 moves = self.party_state(slot)[3]
                 if move in moves:
                     continue
-                scores = [self.keep_score(m, types) for m in moves]
+                deleter = CHAPTER_ORDER.index(name) >= CHAPTER_ORDER.index("koga")
+                scores = [self.score(m, types, ()) if deleter else self.keep_score(m, types) for m in moves]
                 k = scores.index(min(scores))
                 if self.score(move, types, ()) <= scores[k]:
                     continue
@@ -377,7 +379,7 @@ class RealTeam(P.Playthrough):
             if target:
                 self.grind(name, target + 4 * attempt)
             self.pick_up_hms(name)
-            self.teach_tms()
+            self.teach_tms(name)
             if name == "snorlax":
                 self.set_flag(P.FLAG_GOT_POKE_FLUTE)
                 self.give(P.SB1_BAG_KEY, 30, P.ITEM_POKE_FLUTE, 1)
@@ -398,7 +400,7 @@ class RealTeam(P.Playthrough):
         for attempt in range(RETRIES + 1):
             self.grind("league", TRAIN["league"][0] + 4 * (attempt + getattr(self, "league_extra", 0)))
             self.pick_up_hms("league")
-            self.teach_tms()
+            self.teach_tms("league")
             self.travel("IndigoPlateau_PokemonCenter_1F", 4, 2)
             g.wait_field(press="B", max_steps=60)
             g.cmd("press Up 16", "wait 120")

@@ -396,7 +396,7 @@ class RealTeam(P.Playthrough):
     def league(self):
         g = self.g
         for attempt in range(RETRIES + 1):
-            self.grind("league", TRAIN["league"][0] + 4 * attempt)
+            self.grind("league", TRAIN["league"][0] + 4 * (attempt + getattr(self, "league_extra", 0)))
             self.pick_up_hms("league")
             self.teach_tms()
             self.travel("IndigoPlateau_PokemonCenter_1F", 4, 2)
@@ -431,12 +431,36 @@ class RealTeam(P.Playthrough):
         self.record("league: the Elite Four", False, lost)
 
     def champion(self):
-        # no training: the team from Lance's room, as a player has it (P.Playthrough.champion trains first)
+        # no training before the Champion: the team from Lance's room, as a player has it. A loss whites out to the
+        # Indigo Plateau's Pokemon Center; then, as a player would, train 4 levels more and walk the Elite Four again.
         self.train = lambda *a: None
+        orig = self.press_a
+        def press_a():
+            if self.g.field_ready() and not self.in_battle() and self.at("IndigoPlateau_PokemonCenter_1F"):
+                raise ChampionLost()
+            orig()
         try:
-            super().champion()
+            for attempt in range(RETRIES + 1):
+                self.press_a = press_a
+                try:
+                    super().champion()
+                    return
+                except ChampionLost:
+                    print(f"  champion: lost (attempt {attempt + 1}), party {self.party_species()}", flush=True)
+                finally:
+                    self.press_a = orig
+                if attempt == RETRIES:
+                    break
+                self.league_extra = attempt + 1
+                self.league()
+            self.record("champion: the Hall of Fame, the credits and CONTINUE", False,
+                        f"lost to the Champion {RETRIES + 1} times, party {self.party_species()}")
         finally:
             del self.train
+
+
+class ChampionLost(Exception):
+    pass
 
 
 def main():
